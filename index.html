@@ -655,15 +655,9 @@ function maybeExpireEffect() {
   }
 }
 
-function randomMysteryLaneY() {
-  const lanes = [0.35, 0.65];
-  return gameHeight * lanes[Math.random() < 0.5 ? 0 : 1];
-}
-
 function queueMysteryPlan(targetPipeId) {
   mysteryPlans.push({
-    targetPipeId,
-    y: randomMysteryLaneY()
+    targetPipeId
   });
 }
 
@@ -724,14 +718,19 @@ function maybeSpawnMysteryBoxFromPlans() {
 
   if (leftPipe && rightPipe) {
     const centerX = (leftPipe.x + leftPipe.width + rightPipe.x) * 0.5;
-    spawnMysteryBoxAt(centerX, plan.y);
+    const leftGapCenterY = (leftPipe.top + leftPipe.bottom) * 0.5;
+    const rightGapCenterY = (rightPipe.top + rightPipe.bottom) * 0.5;
+    const centerY = (leftGapCenterY + rightGapCenterY) * 0.5;
+    spawnMysteryBoxAt(centerX, centerY);
     mysteryPlans.shift();
     return;
   }
 
   // Fallback if anchored columns have already passed the viewport.
   if (pipes.length > 0 && pipes[0].id > plan.targetPipeId) {
-    spawnMysteryBoxAt(gameWidth * 0.56, plan.y);
+    const fallbackPipe = pipes[0];
+    const centerY = (fallbackPipe.top + fallbackPipe.bottom) * 0.5;
+    spawnMysteryBoxAt(gameWidth * 0.56, centerY);
     mysteryPlans.shift();
   }
 }
@@ -994,7 +993,7 @@ window.addEventListener("resize", () => {
 function createPipe() {
   const difficulty = Math.min(score, 30);
   const baseGap = Math.max(132, Math.min(190, Math.floor(gameHeight * 0.24)));
-  const gap = Math.max(118, baseGap - difficulty);
+  const gap = Math.max(118, baseGap - difficulty) * 1.1;
   const margin = Math.max(50, Math.floor(gameHeight * 0.1));
   const maxTop = Math.max(margin + 1, gameHeight - gap - margin);
   const topHeight = Math.random() * (maxTop - margin) + margin;
@@ -1003,7 +1002,7 @@ function createPipe() {
   pipes.push({
     id: totalPipesCreated,
     x: gameWidth,
-    width: 90,
+    width: 85.5,
     top: topHeight,
     bottom: topHeight + gap,
     passed: false
