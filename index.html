@@ -295,6 +295,7 @@ let sizeMultiplier = 1;
 let invincibleUntil = 0;
 let godModeCharges = 0;
 let lastRoundEffectLabel = "None";
+let deathEffectLabel = "None";
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -736,6 +737,19 @@ function clearTimedEffect() {
   recalculateBirdSize();
 }
 
+function normalizeEffectLabelForDeath(label) {
+  if (!label || label === "None") {
+    return "None";
+  }
+
+  // Death screen should show the clean effect name, not state text.
+  if (label === "God Mode Ready" || label === "God Mode Activated") {
+    return "God Mode";
+  }
+
+  return label;
+}
+
 function rememberRoundEffect(label) {
   lastRoundEffectLabel = label;
 }
@@ -752,7 +766,7 @@ function activateGodModeShield(durationMs) {
 
   godModeCharges -= 1;
   invincibleUntil = Date.now() + durationMs;
-  rememberRoundEffect("God Mode Activated");
+  rememberRoundEffect("God Mode");
   return true;
 }
 
@@ -840,15 +854,19 @@ function maybeQueueMysteryPlans() {
   }
 }
 
-function getActiveEffectLabel() {
+function getCurrentEffectLabels(includeStateText) {
   const labels = [];
 
   if (hasGodModeActive()) {
-    const remainingSeconds = Math.max(0, Math.ceil((invincibleUntil - Date.now()) / 1000));
-    labels.push("God Mode Active " + remainingSeconds + "s");
+    if (includeStateText) {
+      const remainingSeconds = Math.max(0, Math.ceil((invincibleUntil - Date.now()) / 1000));
+      labels.push("God Mode Active " + remainingSeconds + "s");
+    } else {
+      labels.push("God Mode");
+    }
   }
 
-  if (godModeCharges > 0) {
+  if (includeStateText && godModeCharges > 0) {
     labels.push("God Ready x" + godModeCharges);
   }
 
@@ -862,12 +880,34 @@ function getActiveEffectLabel() {
     labels.push(effectLabels[activeEffect.type] || "Active");
   }
 
+  return labels;
+}
+
+function getEffectLabelForDeath() {
+  const activeLabels = getCurrentEffectLabels(false);
+  if (activeLabels.length > 0) {
+    return activeLabels.join(" + ");
+  }
+
+  if (lastRoundEffectLabel && lastRoundEffectLabel !== "None") {
+    return normalizeEffectLabelForDeath(lastRoundEffectLabel);
+  }
+
+  return "None";
+}
+
+function getActiveEffectLabel() {
+  if (gameOver) {
+    return deathEffectLabel || "None";
+  }
+
+  const labels = getCurrentEffectLabels(true);
   if (labels.length > 0) {
     return labels.join(" + ");
   }
 
   if (lastRoundEffectLabel && lastRoundEffectLabel !== "None") {
-    return lastRoundEffectLabel;
+    return normalizeEffectLabelForDeath(lastRoundEffectLabel);
   }
 
   return "None";
@@ -1175,6 +1215,7 @@ function resetRoundState() {
   mysteryBox = null;
   mysteryPlans = [];
   lastRoundEffectLabel = "None";
+  deathEffectLabel = "None";
   firstMysteryQueued = false;
   nextMysteryScoreThreshold = 22;
   invincibleUntil = 0;
@@ -1248,6 +1289,7 @@ function setGameOver() {
   if (gameOver) {
     return;
   }
+  deathEffectLabel = getEffectLabelForDeath();
   gameOver = true;
   persistCurrentScore();
   updateStartButtonLabel();
