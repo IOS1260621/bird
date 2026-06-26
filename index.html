@@ -36,6 +36,11 @@ const ctx = canvas.getContext("2d");
 
 let gameWidth = 0;
 let gameHeight = 0;
+let uiScale = 1;
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
 
 function setCanvasSize() {
   // Match iPhone's dynamic viewport height and render sharply on retina screens.
@@ -48,6 +53,8 @@ function setCanvasSize() {
   canvas.width = Math.floor(gameWidth * dpr);
   canvas.height = Math.floor(gameHeight * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  uiScale = clamp(Math.min(gameWidth / 390, gameHeight / 844), 0.85, 1.2);
 }
 
 setCanvasSize();
@@ -63,6 +70,14 @@ let bird = {
 
 bird.x = Math.max(70, Math.min(100, gameWidth * 0.2));
 
+function applyPhysicsTuning() {
+  bird.size = Math.round(clamp(gameWidth * 0.032, 20, 26));
+  bird.gravity = clamp(0.4 + gameHeight / 5000, 0.42, 0.56);
+  bird.jump = -clamp(7.6 + gameHeight / 980, 7.8, 8.9);
+}
+
+applyPhysicsTuning();
+
 let pipes = [];
 let score = 0;
 let gameOver = false;
@@ -71,7 +86,8 @@ function flap() {
   if (gameOver) {
     restart();
   } else {
-    bird.velocity = bird.jump;
+    // Keep taps responsive without stacking overly strong upward boosts.
+    bird.velocity = Math.min(bird.velocity, bird.jump);
   }
 }
 
@@ -88,6 +104,7 @@ document.addEventListener("keydown", e => {
 
 window.addEventListener("resize", () => {
   setCanvasSize();
+  applyPhysicsTuning();
 
   // Keep bird position valid after iPhone orientation changes.
   bird.x = Math.max(70, Math.min(100, gameWidth * 0.2));
@@ -103,7 +120,9 @@ window.addEventListener("resize", () => {
 });
 
 function createPipe() {
-  const gap = Math.max(130, Math.min(180, Math.floor(gameHeight * 0.22)));
+  const difficulty = Math.min(score, 30);
+  const baseGap = Math.max(132, Math.min(190, Math.floor(gameHeight * 0.24)));
+  const gap = Math.max(118, baseGap - difficulty);
   const margin = Math.max(50, Math.floor(gameHeight * 0.1));
   const maxTop = Math.max(margin + 1, gameHeight - gap - margin);
   const topHeight = Math.random() * (maxTop - margin) + margin;
@@ -120,15 +139,19 @@ function createPipe() {
 function update() {
   if (gameOver) return;
 
+  const difficulty = Math.min(score, 30);
+  const pipeSpeed = (2.7 + difficulty * 0.03) * 0.7;
+  const spawnSpacing = Math.max(200, 280 - difficulty * 2);
+
   bird.velocity += bird.gravity;
   bird.y += bird.velocity;
 
-  if (pipes.length === 0 || pipes[pipes.length - 1].x < gameWidth - 260) {
+  if (pipes.length === 0 || pipes[pipes.length - 1].x < gameWidth - spawnSpacing) {
     createPipe();
   }
 
   pipes.forEach(pipe => {
-    pipe.x -= 3;
+    pipe.x -= pipeSpeed;
 
     if (!pipe.passed && pipe.x + pipe.width < bird.x) {
       score++;
@@ -174,23 +197,31 @@ function draw() {
   ctx.fill();
 
   // Score
+  const scoreFont = Math.round(clamp(34 * uiScale, 28, 42));
+  const hudX = Math.round(clamp(22 * uiScale, 18, 32));
+  const hudY = Math.round(clamp(56 * uiScale, 46, 70));
+
   ctx.fillStyle = "#111827";
-  ctx.font = "bold 36px Arial";
-  ctx.fillText(score, 30, 60);
+  ctx.font = "bold " + scoreFont + "px Arial";
+  ctx.fillText(score, hudX, hudY);
 
   if (gameOver) {
+    const titleFont = Math.round(clamp(42 * uiScale, 32, 50));
+    const bodyFont = Math.round(clamp(24 * uiScale, 19, 30));
+    const hintFont = Math.round(clamp(20 * uiScale, 16, 24));
+
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, gameWidth, gameHeight);
 
     ctx.fillStyle = "white";
     ctx.textAlign = "center";
-    ctx.font = "bold 42px Arial";
+    ctx.font = "bold " + titleFont + "px Arial";
     ctx.fillText("Game Over", gameWidth / 2, gameHeight / 2 - 40);
 
-    ctx.font = "24px Arial";
+    ctx.font = bodyFont + "px Arial";
     ctx.fillText("Score: " + score, gameWidth / 2, gameHeight / 2);
 
-    ctx.font = "20px Arial";
+    ctx.font = hintFont + "px Arial";
     ctx.fillText("Tap to restart", gameWidth / 2, gameHeight / 2 + 45);
     ctx.textAlign = "left";
   }
