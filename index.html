@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game</title>
+  <title>InventorPath Flappy Game V4</title>
   <style>
     html, body {
       width: 100%;
@@ -200,8 +200,8 @@ const logoutButton = document.getElementById("logoutButton");
 const downloadScoreFileButton = document.getElementById("downloadScoreFileButton");
 const ctGantryImage = new Image();
 
-const DEFAULT_DOG_SPRITE = "bruce.png";
-const AVAILABLE_DOG_SPRITES = ["bruce.png", "dog.svg", "gooboybruce.PNG", "smileB.png"];
+const DEFAULT_DOG_SPRITE = "dog.svg";
+const AVAILABLE_DOG_SPRITES = ["dog.svg", "bruce.png", "gooboybruce.PNG", "smileB.png"];
 
 // Version 2: preload all player sprites once and switch by name.
 // This prevents iPhone/GitHub Pages timing/caching issues where the selector
@@ -1121,18 +1121,78 @@ function drawElectricity(pipe, timeMs) {
     ctx.lineTo(anchorX, endY);
 
     ctx.save();
-    ctx.strokeStyle = "rgba(56, 189, 248, " + (0.32 + flicker * 0.28) + ")";
+    ctx.strokeStyle = "rgba(57, 255, 20, " + (0.35 + flicker * 0.35) + ")";
     ctx.lineWidth = 6;
-    ctx.shadowColor = "rgba(56, 189, 248, 0.8)";
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = "rgba(57, 255, 20, 0.95)";
+    ctx.shadowBlur = 14;
     ctx.stroke();
 
-    ctx.strokeStyle = "rgba(224, 242, 254, " + (0.6 + flicker * 0.35) + ")";
+    ctx.strokeStyle = "rgba(200, 255, 120, " + (0.72 + flicker * 0.28) + ")";
     ctx.lineWidth = 2;
     ctx.shadowBlur = 0;
     ctx.stroke();
     ctx.restore();
   }
+}
+
+function getFibonacciLevel() {
+  return Math.floor(score / 10);
+}
+
+function drawFibonacciPattern(pipe, y, height, timeMs, sectionOffset) {
+  const level = getFibonacciLevel();
+  if (level < 1 || height < 70) {
+    return;
+  }
+
+  // Every 10 points, a new deterministic-random Fibonacci pattern appears
+  // in selected columns. The selected columns change each 10-point level.
+  const patternSeed = pipe.id * 31 + level * 17 + sectionOffset;
+  if (seededNoise(patternSeed) < 0.38) {
+    return;
+  }
+
+  const fib = [1, 1, 2, 3, 5, 8, 13, 21];
+  const cx = pipe.x + pipe.width / 2;
+  const availableHeight = Math.max(40, height - 24);
+  const topY = y + 12;
+  const pulse = 0.5 + 0.5 * Math.sin(timeMs * 0.004 + patternSeed);
+
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  fib.forEach((value, index) => {
+    const t = index / (fib.length - 1);
+    const dotY = topY + availableHeight * t;
+    const waveX = Math.sin(t * Math.PI * 3 + patternSeed) * pipe.width * 0.22;
+    const radius = clamp(value * 0.55 * uiScale, 2.5, 11);
+
+    ctx.beginPath();
+    ctx.fillStyle = "rgba(57, 255, 20, " + (0.22 + pulse * 0.16) + ")";
+    ctx.arc(cx + waveX, dotY, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.font = "700 " + Math.round(clamp(9 * uiScale, 8, 12)) + "px Arial";
+    ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
+    ctx.fillText(String(value), cx + waveX, dotY);
+  });
+
+  ctx.strokeStyle = "rgba(57, 255, 20, 0.4)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  fib.forEach((value, index) => {
+    const t = index / (fib.length - 1);
+    const dotY = topY + availableHeight * t;
+    const waveX = Math.sin(t * Math.PI * 3 + patternSeed) * pipe.width * 0.22;
+    if (index === 0) {
+      ctx.moveTo(cx + waveX, dotY);
+    } else {
+      ctx.lineTo(cx + waveX, dotY);
+    }
+  });
+  ctx.stroke();
+  ctx.restore();
 }
 
 function draw() {
@@ -1155,6 +1215,8 @@ function draw() {
 
     drawColumnLabel("CHUB", pipe.x, 0, pipe.width, pipe.top);
     drawColumnLabel(bottomColumnLabel, pipe.x, pipe.bottom, pipe.width, gameHeight - pipe.bottom);
+    drawFibonacciPattern(pipe, 0, pipe.top, nowMs, 0);
+    drawFibonacciPattern(pipe, pipe.bottom, gameHeight - pipe.bottom, nowMs, 1000);
 
     // Gantry openings at the edge of the playable gap.
     const topGantryY = pipe.top - gantryHeight;
@@ -1229,8 +1291,14 @@ function draw() {
   const hudY = Math.round(clamp(56 * uiScale, 46, 70));
 
   ctx.fillStyle = "#111827";
+  const playerLabel = (playerName || "Player") + ":";
+  const nameFont = Math.round(clamp(20 * uiScale, 16, 26));
+  ctx.font = "bold " + nameFont + "px Arial";
+  ctx.fillText(playerLabel, hudX, hudY);
+
+  const scoreX = hudX + ctx.measureText(playerLabel).width + Math.round(10 * uiScale);
   ctx.font = "bold " + scoreFont + "px Arial";
-  ctx.fillText(score, hudX, hudY);
+  ctx.fillText(score, scoreX, hudY);
 
   if (gameOver) {
     const titleFont = Math.round(clamp(42 * uiScale, 32, 50));
