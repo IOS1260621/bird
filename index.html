@@ -141,6 +141,10 @@
       color: #0f172a;
       margin-bottom: 8px;
       line-height: 1.25;
+      cursor: grab;
+    }
+    .auth-status.dragging {
+      cursor: grabbing;
     }
     .auth-note {
       color: #475569;
@@ -173,7 +177,7 @@
     <label for="spritePicker">Bruce</label>
     <select id="spritePicker"></select>
   </div>
-  <div class="sprite-hint" id="spriteHint" style="display:none;">Top scorer can choose the Bruce image.</div>
+  <div class="sprite-hint" id="spriteHint" style="display:none;">Choose any PNG avatar. dog.svg unlocks for top scorer.</div>
   <div class="score-list-title" id="scoreListTitle">Recent scores</div>
   <ol class="score-list" id="scoreList"></ol>
   <div class="hud-actions">
@@ -206,6 +210,7 @@ const ctGantryImage = new Image();
 
 const DEFAULT_DOG_SPRITE = "dog.svg";
 const AVAILABLE_DOG_SPRITES = ["dog.svg", "bruce.png", "gooboybruce.PNG", "smileB.png"];
+const PNG_DOG_SPRITES = AVAILABLE_DOG_SPRITES.filter(spriteName => spriteName.toLowerCase().endsWith(".png"));
 
 // Version 2: preload all player sprites once and switch by name.
 // This prevents iPhone/GitHub Pages timing/caching issues where the selector
@@ -256,6 +261,12 @@ let speedMultiplier = 1;
 let sizeMultiplier = 1;
 let godModeCharges = 0;
 let invincibleUntil = 0;
+const HUD_PANEL_MARGIN = 12;
+let hudPanelDragState = {
+  active: false,
+  offsetX: 0,
+  offsetY: 0
+};
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -544,27 +555,30 @@ function normalizedName(name) {
   return sanitizeName(name).toLowerCase();
 }
 
+function getPlayedAtTime(entry) {
+  const timeValue = new Date(entry.playedAt).getTime();
+  return Number.isFinite(timeValue) ? timeValue : Number.MAX_SAFE_INTEGER;
+}
+
+function compareScoreEntries(a, b) {
+  if (b.score !== a.score) {
+    return b.score - a.score;
+  }
+  // Earlier timestamp wins tie-breaker for top scorer ranking.
+  return getPlayedAtTime(a) - getPlayedAtTime(b);
+}
+
 function getScoresForPlayer(name) {
   const nameKey = normalizedName(name);
   return scoreHistory
     .filter(entry => normalizedName(entry.name) === nameKey)
-    .sort((a, b) => {
-      if (b.score !== a.score) {
-        return b.score - a.score;
-      }
-      return new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime();
-    });
+    .sort(compareScoreEntries);
 }
 
 function getTopScores(limit) {
   return scoreHistory
     .slice()
-    .sort((a, b) => {
-      if (b.score !== a.score) {
-        return b.score - a.score;
-      }
-      return new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime();
-    })
+    .sort(compareScoreEntries)
     .slice(0, limit);
 }
 
@@ -577,27 +591,97 @@ function isCurrentPlayerTopScorer() {
   return Boolean(topEntry) && normalizedName(topEntry.name) === normalizedName(playerName);
 }
 
+function getAllowedSpritesForCurrentUser() {
+  return isCurrentPlayerTopScorer() ? AVAILABLE_DOG_SPRITES : PNG_DOG_SPRITES;
+}
+
+function getDefaultSpriteForCurrentUser() {
+  if (isCurrentPlayerTopScorer()) {
+    return DEFAULT_DOG_SPRITE;
+  }
+  return PNG_DOG_SPRITES[0] || DEFAULT_DOG_SPRITE;
+}
+
+function refreshSpritePickerOptions() {
+  const allowedSprites = getAllowedSpritesForCurrentUser();
+  spritePicker.innerHTML = "";
+
+  allowedSprites.forEach(spriteName => {
+    const option = document.createElement("option");
+    option.value = spriteName;
+    option.textContent = spriteName;
+    spritePicker.appendChild(option);
+  });
+}
+
 function getCurrentPlayerSpriteChoice() {
   const storedChoice = spriteChoicesByUser[normalizedName(playerName)];
-  if (AVAILABLE_DOG_SPRITES.includes(storedChoice)) {
+  const allowedSprites = getAllowedSpritesForCurrentUser();
+  if (allowedSprites.includes(storedChoice)) {
     return storedChoice;
   }
-  return DEFAULT_DOG_SPRITE;
+  return getDefaultSpriteForCurrentUser();
 }
 
 function applyCurrentPlayerSprite() {
-  if (isCurrentPlayerTopScorer()) {
-    const chosen = getCurrentPlayerSpriteChoice();
-    currentSprite = chosen;
-    spritePicker.value = chosen;
-    spritePickerRow.style.display = "flex";
-    spriteHint.style.display = "block";
-  } else {
+  if (!activeUserName) {
     currentSprite = DEFAULT_DOG_SPRITE;
-    spritePicker.value = DEFAULT_DOG_SPRITE;
     spritePickerRow.style.display = "none";
     spriteHint.style.display = "none";
+    return;
   }
+
+  refreshSpritePickerOptions();
+  const chosen = getCurrentPlayerSpriteChoice();
+  currentSprite = chosen;
+  spritePicker.value = chosen;
+  spritePickerRow.style.display = "flex";
+  spriteHint.style.display = "block";
+
+  if (isCurrentPlayerTopScorer()) {
+    spriteHint.textContent = "Top scorer can use dog.svg or any PNG avatar.";
+  } else {
+    spriteHint.textContent = "Choose any PNG avatar. dog.svg unlocks for top scorer.";
+  }
+}
+
+function startHudPanelDrag(event) {
+  if (!gameOver) {
+    return;
+  }
+
+  event.preventDefault();
+  const panelRect = hudPanel.getBoundingClientRect();
+  hudPanelDragState.active = true;
+  hudPanelDragState.offsetX = event.clientX - panelRect.left;
+  hudPanelDragState.offsetY = event.clientY - panelRect.top;
+  authStatus.classList.add("dragging");
+}
+
+function moveHudPanelDrag(event) {
+  if (!hudPanelDragState.active) {
+    return;
+  }
+
+  const panelWidth = hudPanel.offsetWidth;
+  const panelHeight = hudPanel.offsetHeight;
+  const maxX = Math.max(HUD_PANEL_MARGIN, gameWidth - panelWidth - HUD_PANEL_MARGIN);
+  const maxY = Math.max(HUD_PANEL_MARGIN, gameHeight - panelHeight - HUD_PANEL_MARGIN);
+
+  const nextLeft = clamp(event.clientX - hudPanelDragState.offsetX, HUD_PANEL_MARGIN, maxX);
+  const nextTop = clamp(event.clientY - hudPanelDragState.offsetY, HUD_PANEL_MARGIN, maxY);
+
+  hudPanel.style.left = Math.round(nextLeft) + "px";
+  hudPanel.style.top = Math.round(nextTop) + "px";
+}
+
+function endHudPanelDrag() {
+  if (!hudPanelDragState.active) {
+    return;
+  }
+
+  hudPanelDragState.active = false;
+  authStatus.classList.remove("dragging");
 }
 
 function getPipeSpeedMultiplier() {
@@ -921,25 +1005,23 @@ loginButton.addEventListener("click", loginAccount);
 logoutButton.addEventListener("click", logoutAccount);
 downloadScoreFileButton.addEventListener("click", downloadCurrentUserScoreFile);
 spritePicker.addEventListener("change", () => {
-  if (!isCurrentPlayerTopScorer()) {
-    spritePicker.value = DEFAULT_DOG_SPRITE;
-    currentSprite = DEFAULT_DOG_SPRITE;
+  if (!activeUserName) {
     return;
   }
 
-  const chosen = AVAILABLE_DOG_SPRITES.includes(spritePicker.value) ? spritePicker.value : DEFAULT_DOG_SPRITE;
+  const allowedSprites = getAllowedSpritesForCurrentUser();
+  const fallback = getDefaultSpriteForCurrentUser();
+  const chosen = allowedSprites.includes(spritePicker.value) ? spritePicker.value : fallback;
   spriteChoicesByUser[normalizedName(playerName)] = chosen;
   saveSpriteChoices();
   currentSprite = chosen;
+  spritePicker.value = chosen;
 });
 startGameButton.addEventListener("click", startGame);
-
-AVAILABLE_DOG_SPRITES.forEach(spriteName => {
-  const option = document.createElement("option");
-  option.value = spriteName;
-  option.textContent = spriteName;
-  spritePicker.appendChild(option);
-});
+authStatus.addEventListener("pointerdown", startHudPanelDrag);
+window.addEventListener("pointermove", moveHudPanelDrag);
+window.addEventListener("pointerup", endHudPanelDrag);
+window.addEventListener("pointercancel", endHudPanelDrag);
 
 scoreHistory = loadScoreHistory();
 saveCurrentUserScoreFile();
