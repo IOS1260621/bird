@@ -104,9 +104,12 @@ const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
 
 const PLAYER_NAME_KEY = "inventorpath_player_name";
+const PLAYER_NAME_SET_KEY = "inventorpath_player_name_set";
 const SCORE_HISTORY_KEY = "inventorpath_score_history";
 
-let playerName = localStorage.getItem(PLAYER_NAME_KEY) || "Player";
+const storedPlayerName = sanitizeName(localStorage.getItem(PLAYER_NAME_KEY) || "");
+let playerName = storedPlayerName || "Player";
+let hasSetPlayerName = localStorage.getItem(PLAYER_NAME_SET_KEY) === "1" || Boolean(storedPlayerName);
 let scoreHistory = [];
 
 let gameWidth = 0;
@@ -228,11 +231,26 @@ function renderScoreHistory() {
   });
 }
 
+function updateHudVisibility() {
+  hudPanel.style.display = gameOver || !hasSetPlayerName ? "block" : "none";
+}
+
 function applyPlayerNameFromInput() {
-  const nextName = sanitizeName(playerNameInput.value) || "Player";
-  playerName = nextName;
-  playerNameInput.value = nextName;
-  localStorage.setItem(PLAYER_NAME_KEY, nextName);
+  const nextName = sanitizeName(playerNameInput.value);
+  if (nextName) {
+    playerName = nextName;
+    hasSetPlayerName = true;
+    localStorage.setItem(PLAYER_NAME_SET_KEY, "1");
+  } else {
+    playerName = "Player";
+    hasSetPlayerName = false;
+    localStorage.removeItem(PLAYER_NAME_SET_KEY);
+  }
+
+  playerNameInput.value = playerName;
+  localStorage.setItem(PLAYER_NAME_KEY, playerName);
+  renderScoreHistory();
+  updateHudVisibility();
 }
 
 function persistCurrentScore() {
@@ -258,13 +276,21 @@ function setGameOver() {
   }
   gameOver = true;
   persistCurrentScore();
+  updateHudVisibility();
 }
 
 playerNameInput.value = playerName;
 playerNameInput.addEventListener("change", applyPlayerNameFromInput);
 playerNameInput.addEventListener("blur", applyPlayerNameFromInput);
+playerNameInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    applyPlayerNameFromInput();
+    playerNameInput.blur();
+  }
+});
 scoreHistory = loadScoreHistory();
 renderScoreHistory();
+updateHudVisibility();
 
 function flap() {
   if (gameOver) {
@@ -452,6 +478,7 @@ function restart() {
   gameOver = false;
   scoreSavedForRound = false;
   lastSavedEntry = null;
+  updateHudVisibility();
 }
 
 function loop() {
