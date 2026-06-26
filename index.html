@@ -123,6 +123,9 @@ const playerNameInput = document.getElementById("playerNameInput");
 const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
+const dogImage = new Image();
+
+dogImage.src = "dog.svg";
 
 const PLAYER_NAME_KEY = "inventorpath_player_name";
 const PLAYER_NAME_SET_KEY = "inventorpath_player_name_set";
@@ -445,17 +448,29 @@ function draw() {
     ctx.fillRect(pipe.x, pipe.bottom, pipe.width, gameHeight - pipe.bottom);
   });
 
-  // Bird
-  ctx.fillStyle = "#facc15";
-  ctx.beginPath();
-  ctx.arc(bird.x, bird.y, bird.size, 0, Math.PI * 2);
-  ctx.fill();
+  // Player character (dog image when available, fallback to circle while loading).
+  const spriteSize = bird.size * 2;
+  const spriteX = bird.x - bird.size;
+  const spriteY = bird.y - bird.size;
 
-  // Eye
-  ctx.fillStyle = "#000";
-  ctx.beginPath();
-  ctx.arc(bird.x + 8, bird.y - 7, 4, 0, Math.PI * 2);
-  ctx.fill();
+  if (dogImage.complete && dogImage.naturalWidth > 0) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(bird.x, bird.y, bird.size, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(dogImage, spriteX, spriteY, spriteSize, spriteSize);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = "#facc15";
+    ctx.beginPath();
+    ctx.arc(bird.x, bird.y, bird.size, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.arc(bird.x + 8, bird.y - 7, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
 
   // Score
   const scoreFont = Math.round(clamp(34 * uiScale, 28, 42));

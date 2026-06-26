@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Generic dog face">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f4c28a"/>
+      <stop offset="100%" stop-color="#e7a86d"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="248" fill="url(#bg)"/>
+
+  <ellipse cx="130" cy="170" rx="70" ry="95" fill="#8b5a3c" transform="rotate(-18 130 170)"/>
+  <ellipse cx="382" cy="170" rx="70" ry="95" fill="#8b5a3c" transform="rotate(18 382 170)"/>
+
+  <ellipse cx="256" cy="290" rx="150" ry="140" fill="#f7d9b8"/>
+
+  <circle cx="190" cy="230" r="18" fill="#222"/>
+  <circle cx="322" cy="230" r="18" fill="#222"/>
+  <circle cx="184" cy="224" r="5" fill="#fff"/>
+  <circle cx="316" cy="224" r="5" fill="#fff"/>
+
+  <ellipse cx="256" cy="290" rx="44" ry="34" fill="#3b2a22"/>
+
+  <path d="M210 338 Q256 372 302 338" stroke="#3b2a22" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <ellipse cx="224" cy="360" rx="20" ry="12" fill="#f09fb0"/>
+  <ellipse cx="288" cy="360" rx="20" ry="12" fill="#f09fb0"/>
+
+  <circle cx="256" cy="256" r="248" fill="none" stroke="#c97f48" stroke-width="12"/>
+</svg>
