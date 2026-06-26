@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V4</title>
+  <title>InventorPath Flappy Game V6</title>
   <style>
     html, body {
       width: 100%;
@@ -148,17 +148,95 @@
       line-height: 1.25;
       margin-bottom: 8px;
     }
+
+    .dev-button {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      background: #334155;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 9px 12px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    .admin-panel {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 20;
+      width: min(88vw, 360px);
+      background: rgba(15, 23, 42, 0.96);
+      color: #ffffff;
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
+      touch-action: auto;
+      pointer-events: auto;
+    }
+    .admin-panel h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+    .admin-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .admin-row label {
+      width: 96px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .admin-row input, .admin-row select {
+      flex: 1;
+      font-size: 14px;
+      padding: 7px 9px;
+      border: 1px solid #64748b;
+      border-radius: 8px;
+      outline: none;
+      min-width: 0;
+    }
+    .admin-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .admin-actions button {
+      border: 0;
+      border-radius: 10px;
+      background: #0284c7;
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 9px 10px;
+      cursor: pointer;
+    }
+    .admin-actions .close-admin {
+      background: #475569;
+    }
+    .admin-status {
+      min-height: 16px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #bbf7d0;
+    }
   </style>
 </head>
 <body>
 <div class="hud-panel" id="hudPanel">
   <div class="auth-status" id="authStatus">Sign in or create a player account.</div>
-  <div class="auth-note">This static web version saves accounts and top 3 scores in this browser. Use Download Score File to export a JSON file.</div>
-  <div class="hud-row">
+  <div class="auth-note" id="authNote"></div>
+  <div class="hud-row" id="authUserRow">
     <label for="playerNameInput">User</label>
     <input id="playerNameInput" type="text" maxlength="20" placeholder="User name">
   </div>
-  <div class="hud-row">
+  <div class="hud-row" id="authPassRow">
     <label for="passwordInput">Pass</label>
     <input id="passwordInput" type="password" maxlength="30" placeholder="Password">
   </div>
@@ -167,6 +245,7 @@
     <button class="secondary-button" id="loginButton" type="button">Log In</button>
     <button class="secondary-button" id="logoutButton" type="button" style="display:none;">Log Out</button>
     <button class="secondary-button" id="downloadScoreFileButton" type="button" style="display:none;">Download My Score File</button>
+    <button class="dev-button" id="devModeButton" type="button">Dev Mode</button>
   </div>
   <div class="hud-row" id="spritePickerRow" style="display:none;">
     <label for="spritePicker">Bruce</label>
@@ -178,6 +257,45 @@
   <div class="hud-actions">
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
   </div>
+</div>
+
+<div class="admin-panel" id="adminPanel" style="display:none;">
+  <h3>Admin Dev Mode</h3>
+  <div id="adminLoginArea">
+    <div class="admin-row">
+      <label for="adminUserInput">Admin User</label>
+      <input id="adminUserInput" type="text" maxlength="30" placeholder="Admin">
+    </div>
+    <div class="admin-row">
+      <label for="adminPassInput">Admin Pass</label>
+      <input id="adminPassInput" type="password" maxlength="30" placeholder="Admin">
+    </div>
+    <div class="admin-actions">
+      <button id="adminLoginButton" type="button">Log In</button>
+      <button class="close-admin" id="adminCloseButton" type="button">Close</button>
+    </div>
+  </div>
+  <div id="adminSettingsArea" style="display:none;">
+    <div class="admin-row">
+      <label for="bruceSizeSelect">Bruce Size</label>
+      <select id="bruceSizeSelect">
+        <option value="1">1 - Tiny</option>
+        <option value="2">2 - Small</option>
+        <option value="3">3 - Default</option>
+        <option value="4">4 - Large</option>
+        <option value="5">5 - Extra Large</option>
+      </select>
+    </div>
+    <div class="admin-row">
+      <label for="adminGodModeCheckbox">God Mode</label>
+      <input id="adminGodModeCheckbox" type="checkbox">
+    </div>
+    <div class="admin-actions">
+      <button id="saveAdminSettingsButton" type="button">Save Settings</button>
+      <button class="close-admin" id="adminLogoutButton" type="button">Exit Admin</button>
+    </div>
+  </div>
+  <div class="admin-status" id="adminStatus"></div>
 </div>
 <canvas id="game"></canvas>
 
@@ -194,10 +312,26 @@ const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
 const passwordInput = document.getElementById("passwordInput");
 const authStatus = document.getElementById("authStatus");
+const authNote = document.getElementById("authNote");
+const authUserRow = document.getElementById("authUserRow");
+const authPassRow = document.getElementById("authPassRow");
 const createAccountButton = document.getElementById("createAccountButton");
 const loginButton = document.getElementById("loginButton");
 const logoutButton = document.getElementById("logoutButton");
 const downloadScoreFileButton = document.getElementById("downloadScoreFileButton");
+const devModeButton = document.getElementById("devModeButton");
+const adminPanel = document.getElementById("adminPanel");
+const adminLoginArea = document.getElementById("adminLoginArea");
+const adminSettingsArea = document.getElementById("adminSettingsArea");
+const adminUserInput = document.getElementById("adminUserInput");
+const adminPassInput = document.getElementById("adminPassInput");
+const adminLoginButton = document.getElementById("adminLoginButton");
+const adminCloseButton = document.getElementById("adminCloseButton");
+const adminLogoutButton = document.getElementById("adminLogoutButton");
+const bruceSizeSelect = document.getElementById("bruceSizeSelect");
+const adminGodModeCheckbox = document.getElementById("adminGodModeCheckbox");
+const saveAdminSettingsButton = document.getElementById("saveAdminSettingsButton");
+const adminStatus = document.getElementById("adminStatus");
 const ctGantryImage = new Image();
 
 const DEFAULT_DOG_SPRITE = "dog.svg";
@@ -231,6 +365,7 @@ const SPRITE_CHOICES_KEY = "inventorpath_sprite_choices";
 const USER_ACCOUNTS_KEY = "inventorpath_user_accounts";
 const ACTIVE_USER_KEY = "inventorpath_active_user";
 const SCORE_FILE_PREFIX = "inventorpath_score_file_";
+const GAME_SETTINGS_KEY = "inventorpath_game_settings";
 
 let gameWidth = 0;
 let gameHeight = 0;
@@ -252,6 +387,93 @@ let sizeMultiplier = 1;
 let gapMultiplier = 1;
 let godModeCharges = 0;
 let invincibleUntil = 0;
+let adminLoggedIn = false;
+let gameSettings = loadGameSettings();
+let bruceSizeLevel = Number(gameSettings.bruceSizeLevel || 3);
+let adminGodModeEnabled = Boolean(gameSettings.godModeEnabled);
+
+function loadGameSettings() {
+  try {
+    const raw = localStorage.getItem(GAME_SETTINGS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function saveGameSettings() {
+  const settings = {
+    bruceSizeLevel,
+    godModeEnabled: adminGodModeEnabled,
+    updatedAt: new Date().toISOString()
+  };
+  localStorage.setItem(GAME_SETTINGS_KEY, JSON.stringify(settings));
+}
+
+function getBruceSizeScale(level) {
+  const scales = {
+    1: 0.56,
+    2: 0.8,
+    3: 1,
+    4: 1.2,
+    5: 1.56
+  };
+  return scales[Number(level)] || 1;
+}
+
+function openAdminPanel() {
+  adminPanel.style.display = "block";
+  adminStatus.textContent = "";
+  if (adminLoggedIn) {
+    showAdminSettings();
+  } else {
+    adminLoginArea.style.display = "block";
+    adminSettingsArea.style.display = "none";
+    adminUserInput.value = "";
+    adminPassInput.value = "";
+    setTimeout(() => adminUserInput.focus(), 50);
+  }
+}
+
+function closeAdminPanel() {
+  adminPanel.style.display = "none";
+  adminStatus.textContent = "";
+}
+
+function showAdminSettings() {
+  adminLoginArea.style.display = "none";
+  adminSettingsArea.style.display = "block";
+  bruceSizeSelect.value = String(bruceSizeLevel);
+  adminGodModeCheckbox.checked = adminGodModeEnabled;
+  adminStatus.textContent = "Admin mode active.";
+}
+
+function adminLogin() {
+  if (adminUserInput.value === "Admin" && adminPassInput.value === "Admin") {
+    adminLoggedIn = true;
+    adminPassInput.value = "";
+    showAdminSettings();
+  } else {
+    adminStatus.textContent = "Incorrect admin user or password.";
+  }
+}
+
+function adminLogout() {
+  adminLoggedIn = false;
+  closeAdminPanel();
+}
+
+function saveAdminSettings() {
+  bruceSizeLevel = Number(bruceSizeSelect.value || 3);
+  adminGodModeEnabled = adminGodModeCheckbox.checked;
+  saveGameSettings();
+  recalculateBirdSize();
+  adminStatus.textContent = "Settings saved.";
+}
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -343,6 +565,9 @@ function downloadCurrentUserScoreFile() {
 function renderAuthStatus() {
   if (activeUserName) {
     authStatus.textContent = "Logged in as " + playerName;
+    authNote.style.display = "none";
+    authUserRow.style.display = "none";
+    authPassRow.style.display = "none";
     loginButton.style.display = "none";
     createAccountButton.style.display = "none";
     logoutButton.style.display = "block";
@@ -351,6 +576,9 @@ function renderAuthStatus() {
     startGameButton.style.opacity = "1";
   } else {
     authStatus.textContent = "Sign in or create a player account.";
+    authNote.style.display = "none";
+    authUserRow.style.display = "flex";
+    authPassRow.style.display = "flex";
     loginButton.style.display = "block";
     createAccountButton.style.display = "block";
     logoutButton.style.display = "none";
@@ -499,7 +727,7 @@ let bird = {
 bird.x = Math.max(70, Math.min(100, gameWidth * 0.2));
 
 function recalculateBirdSize() {
-  bird.size = Math.max(0, Math.round(bird.baseSize * sizeMultiplier));
+  bird.size = Math.max(0, Math.round(bird.baseSize * sizeMultiplier * getBruceSizeScale(bruceSizeLevel)));
 }
 
 function applyPhysicsTuning() {
@@ -618,7 +846,7 @@ function applyMysteryEffect() {
   }
 
   if (roll < bucket * 2) {
-    sizeMultiplier = 1.8;
+    sizeMultiplier = 1.5;
     recalculateBirdSize();
     activeEffect = { type: "large", expiresAt: now + 10000 };
     return;
@@ -676,18 +904,18 @@ function queueMysteryPlan(threshold, targetPipeId) {
 }
 
 function maybeQueueMysteryPlans() {
-  if (score >= 25 && !hasMysteryPlanForThreshold(25)) {
-    queueMysteryPlan(25, 27);
+  if (score >= 15 && !hasMysteryPlanForThreshold(15)) {
+    queueMysteryPlan(15, 17);
   }
 
-  if (score >= 40 && !hasMysteryPlanForThreshold(40)) {
-    queueMysteryPlan(40, 44);
+  if (score >= 30 && !hasMysteryPlanForThreshold(30)) {
+    queueMysteryPlan(30, 34);
   }
 
   while (score >= nextRecurringMysteryThreshold) {
-    // After 40, spawn a new mystery box every +30 score forever.
+    // After 30, spawn a new mystery box every +15 score forever.
     queueMysteryPlan(nextRecurringMysteryThreshold, totalPipesCreated + 3);
-    nextRecurringMysteryThreshold += 30;
+    nextRecurringMysteryThreshold += 15;
   }
 }
 
@@ -911,6 +1139,21 @@ createAccountButton.addEventListener("click", createAccount);
 loginButton.addEventListener("click", loginAccount);
 logoutButton.addEventListener("click", logoutAccount);
 downloadScoreFileButton.addEventListener("click", downloadCurrentUserScoreFile);
+devModeButton.addEventListener("click", openAdminPanel);
+adminCloseButton.addEventListener("click", closeAdminPanel);
+adminLoginButton.addEventListener("click", adminLogin);
+adminLogoutButton.addEventListener("click", adminLogout);
+saveAdminSettingsButton.addEventListener("click", saveAdminSettings);
+adminUserInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    adminPassInput.focus();
+  }
+});
+adminPassInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    adminLogin();
+  }
+});
 spritePicker.addEventListener("change", () => {
   if (!isCurrentPlayerTopScorer()) {
     spritePicker.value = DEFAULT_DOG_SPRITE;
@@ -939,6 +1182,9 @@ renderAuthStatus();
 applyCurrentPlayerSprite();
 updateStartButtonLabel();
 updateHudVisibility();
+
+bruceSizeSelect.value = String(bruceSizeLevel);
+adminGodModeCheckbox.checked = adminGodModeEnabled;
 
 function flap() {
   if (!gameStarted || gameOver) {
@@ -1028,6 +1274,7 @@ function update() {
     }
 
     if (
+      !adminGodModeEnabled &&
       Date.now() >= invincibleUntil &&
       bird.x + bird.size > pipe.x &&
       bird.x - bird.size < pipe.x + pipe.width &&
@@ -1054,7 +1301,12 @@ function update() {
   }
 
   if (bird.y + bird.size > gameHeight || bird.y - bird.size < 0) {
-    setGameOver();
+    if (adminGodModeEnabled) {
+      bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
+      bird.velocity = 0;
+    } else {
+      setGameOver();
+    }
   }
 }
 
