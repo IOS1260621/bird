@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 120" role="img" aria-label="CT scanner gantry">
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#cbd5e1"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="180" height="120" rx="10" fill="url(#shell)"/>
+  <rect x="8" y="8" width="164" height="104" rx="10" fill="#f8fafc"/>
+
+  <ellipse cx="90" cy="60" rx="60" ry="42" fill="url(#ring)"/>
+  <ellipse cx="90" cy="60" rx="34" ry="22" fill="#70c5ce"/>
+
+  <rect x="16" y="96" width="148" height="10" rx="5" fill="#475569" opacity="0.6"/>
+  <rect x="20" y="16" width="34" height="7" rx="3" fill="#0ea5e9" opacity="0.8"/>
+  <rect x="126" y="16" width="34" height="7" rx="3" fill="#0ea5e9" opacity="0.8"/>
+</svg>

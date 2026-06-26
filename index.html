@@ -124,8 +124,10 @@ const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
 const dogImage = new Image();
+const ctGantryImage = new Image();
 
 dogImage.src = "dog.svg";
+ctGantryImage.src = "ct-gantry.svg";
 
 const PLAYER_NAME_KEY = "inventorpath_player_name";
 const PLAYER_NAME_SET_KEY = "inventorpath_player_name_set";
@@ -393,7 +395,7 @@ function createPipe() {
 
   pipes.push({
     x: gameWidth,
-    width: 70,
+    width: 90,
     top: topHeight,
     bottom: topHeight + gap,
     passed: false
@@ -442,10 +444,34 @@ function draw() {
   ctx.clearRect(0, 0, gameWidth, gameHeight);
 
   // Pipes
-  ctx.fillStyle = "#22c55e";
   pipes.forEach(pipe => {
+    const gantryHeight = Math.round(clamp(74 * uiScale, 64, 96));
+
+    // Column bodies styled as CT machine structures.
+    ctx.fillStyle = "#cbd5e1";
     ctx.fillRect(pipe.x, 0, pipe.width, pipe.top);
     ctx.fillRect(pipe.x, pipe.bottom, pipe.width, gameHeight - pipe.bottom);
+
+    ctx.fillStyle = "#94a3b8";
+    ctx.fillRect(pipe.x, pipe.top - 8, pipe.width, 8);
+    ctx.fillRect(pipe.x, pipe.bottom, pipe.width, 8);
+
+    // Gantry openings at the edge of the playable gap.
+    const topGantryY = pipe.top - gantryHeight;
+    const bottomGantryY = pipe.bottom;
+
+    if (ctGantryImage.complete && ctGantryImage.naturalWidth > 0) {
+      ctx.drawImage(ctGantryImage, pipe.x, topGantryY, pipe.width, gantryHeight);
+      ctx.drawImage(ctGantryImage, pipe.x, bottomGantryY, pipe.width, gantryHeight);
+    } else {
+      ctx.fillStyle = "#64748b";
+      ctx.fillRect(pipe.x, topGantryY, pipe.width, gantryHeight);
+      ctx.fillRect(pipe.x, bottomGantryY, pipe.width, gantryHeight);
+
+      ctx.fillStyle = "#e2e8f0";
+      ctx.fillRect(pipe.x + pipe.width * 0.2, topGantryY + gantryHeight * 0.3, pipe.width * 0.6, gantryHeight * 0.4);
+      ctx.fillRect(pipe.x + pipe.width * 0.2, bottomGantryY + gantryHeight * 0.3, pipe.width * 0.6, gantryHeight * 0.4);
+    }
   });
 
   // Player character (dog image when available, fallback to circle while loading).
