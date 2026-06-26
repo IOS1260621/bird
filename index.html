@@ -226,10 +226,12 @@ let scoreSavedForRound = false;
 let lastSavedEntry = null;
 let totalPipesCreated = 0;
 let mysteryBox = null;
-let mysteryBoxSpawnedThisRound = false;
+let mysteryPlans = [];
+let nextRecurringMysteryThreshold = 70;
 let activeEffect = null;
 let speedMultiplier = 1;
 let sizeMultiplier = 1;
+let gapMultiplier = 1;
 let godModeCharges = 0;
 let invincibleUntil = 0;
 
@@ -342,16 +344,18 @@ function clearTimedEffect() {
   activeEffect = null;
   speedMultiplier = 1;
   sizeMultiplier = 1;
+  gapMultiplier = 1;
   recalculateBirdSize();
 }
 
 function applyMysteryEffect() {
   const roll = Math.random();
   const now = Date.now();
+  const bucket = 0.1583;
 
   clearTimedEffect();
 
-  if (roll < 0.238) {
+  if (roll < bucket) {
     // Decrease Bruce size by 100% (effectively invisible) for 10s.
     sizeMultiplier = 0;
     recalculateBirdSize();
@@ -359,22 +363,34 @@ function applyMysteryEffect() {
     return;
   }
 
-  if (roll < 0.476) {
+  if (roll < bucket * 2) {
     sizeMultiplier = 1.8;
     recalculateBirdSize();
     activeEffect = { type: "large", expiresAt: now + 10000 };
     return;
   }
 
-  if (roll < 0.714) {
+  if (roll < bucket * 3) {
     speedMultiplier = 0.5;
     activeEffect = { type: "slow", expiresAt: now + 10000 };
     return;
   }
 
-  if (roll < 0.952) {
+  if (roll < bucket * 4) {
     speedMultiplier = 1.3;
     activeEffect = { type: "fast", expiresAt: now + 10000 };
+    return;
+  }
+
+  if (roll < bucket * 5) {
+    gapMultiplier = 0.8;
+    activeEffect = { type: "s-gap", expiresAt: now + 10000 };
+    return;
+  }
+
+  if (roll < bucket * 6) {
+    gapMultiplier = 1.3;
+    activeEffect = { type: "b-gap", expiresAt: now + 10000 };
     return;
   }
 
@@ -388,23 +404,73 @@ function maybeExpireEffect() {
   }
 }
 
-function maybeSpawnFirstMysteryBox() {
-  if (mysteryBoxSpawnedThisRound || score <= 12) {
-    return;
+function randomMysteryLaneY() {
+  const lanes = [0.35, 0.65];
+  return gameHeight * lanes[Math.random() < 0.5 ? 0 : 1];
+}
+
+function hasMysteryPlanForThreshold(threshold) {
+  return mysteryPlans.some(plan => plan.threshold === threshold);
+}
+
+function queueMysteryPlan(threshold, targetPipeId) {
+  mysteryPlans.push({
+    threshold,
+    targetPipeId,
+    y: randomMysteryLaneY()
+  });
+}
+
+function maybeQueueMysteryPlans() {
+  if (score >= 25 && !hasMysteryPlanForThreshold(25)) {
+    queueMysteryPlan(25, 27);
   }
 
-  const pipe14 = pipes.find(pipe => pipe.id === 14);
-  if (!pipe14) {
-    return;
+  if (score >= 40 && !hasMysteryPlanForThreshold(40)) {
+    queueMysteryPlan(40, 44);
   }
 
-  mysteryBoxSpawnedThisRound = true;
+  while (score >= nextRecurringMysteryThreshold) {
+    // After 40, spawn a new mystery box every +30 score forever.
+    queueMysteryPlan(nextRecurringMysteryThreshold, totalPipesCreated + 3);
+    nextRecurringMysteryThreshold += 30;
+  }
+}
+
+function spawnMysteryBoxAt(x, y) {
   mysteryBox = {
-    x: bird.x + (pipe14.x - bird.x) * 0.5,
-    y: gameHeight * 0.5,
+    x,
+    y,
     size: Math.round(clamp(34 * uiScale, 28, 42)),
     active: true
   };
+}
+
+function maybeSpawnMysteryBoxFromPlans() {
+  if (mysteryBox && mysteryBox.active) {
+    return;
+  }
+
+  if (mysteryPlans.length === 0) {
+    return;
+  }
+
+  const plan = mysteryPlans[0];
+  const leftPipe = pipes.find(pipe => pipe.id === plan.targetPipeId - 1);
+  const rightPipe = pipes.find(pipe => pipe.id === plan.targetPipeId);
+
+  if (leftPipe && rightPipe) {
+    const centerX = (leftPipe.x + leftPipe.width + rightPipe.x) * 0.5;
+    spawnMysteryBoxAt(centerX, plan.y);
+    mysteryPlans.shift();
+    return;
+  }
+
+  // Fallback if anchored columns have already passed the viewport.
+  if (pipes.length > 0 && pipes[0].id > plan.targetPipeId) {
+    spawnMysteryBoxAt(gameWidth * 0.56, plan.y);
+    mysteryPlans.shift();
+  }
 }
 
 function maybeCollectMysteryBox() {
@@ -497,7 +563,8 @@ function resetRoundState() {
   lastSavedEntry = null;
   totalPipesCreated = 0;
   mysteryBox = null;
-  mysteryBoxSpawnedThisRound = false;
+  mysteryPlans = [];
+  nextRecurringMysteryThreshold = 70;
   godModeCharges = 0;
   invincibleUntil = 0;
   clearTimedEffect();
@@ -638,7 +705,8 @@ window.addEventListener("resize", () => {
 function createPipe() {
   const difficulty = Math.min(score, 30);
   const baseGap = Math.max(132, Math.min(190, Math.floor(gameHeight * 0.24)));
-  const gap = Math.max(118, baseGap - difficulty);
+  const dynamicGap = Math.max(118, baseGap - difficulty);
+  const gap = clamp(dynamicGap * gapMultiplier, 90, Math.floor(gameHeight * 0.7));
   const margin = Math.max(50, Math.floor(gameHeight * 0.1));
   const maxTop = Math.max(margin + 1, gameHeight - gap - margin);
   const topHeight = Math.random() * (maxTop - margin) + margin;
@@ -658,7 +726,8 @@ function update() {
   if (!gameStarted || gameOver) return;
 
   maybeExpireEffect();
-  maybeSpawnFirstMysteryBox();
+  maybeQueueMysteryPlans();
+  maybeSpawnMysteryBoxFromPlans();
 
   const difficulty = Math.min(score, 30);
   const pipeSpeed = (2.7 + difficulty * 0.03) * 0.7 * getPipeSpeedMultiplier();
