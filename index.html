@@ -249,7 +249,8 @@ let lastSavedEntry = null;
 let totalPipesCreated = 0;
 let mysteryBox = null;
 let mysteryPlans = [];
-let nextRecurringMysteryThreshold = 15;
+let firstMysteryQueued = false;
+let nextMysteryScoreThreshold = 22;
 let activeEffect = null;
 let speedMultiplier = 1;
 let sizeMultiplier = 1;
@@ -618,29 +619,29 @@ function applyMysteryEffect() {
   clearTimedEffect();
 
   if (roll < bucket) {
-    // Decrease Bruce size by 100% (effectively invisible) for 4s.
+    // Decrease Bruce size by 100% (effectively invisible) for 5s.
     sizeMultiplier = 0;
     recalculateBirdSize();
-    activeEffect = { type: "tiny", expiresAt: now + 4000 };
+    activeEffect = { type: "tiny", expiresAt: now + 5000 };
     return;
   }
 
   if (roll < bucket * 2) {
     sizeMultiplier = 1.5;
     recalculateBirdSize();
-    activeEffect = { type: "large", expiresAt: now + 4000 };
+    activeEffect = { type: "large", expiresAt: now + 5000 };
     return;
   }
 
   if (roll < bucket * 3) {
     speedMultiplier = 0.5;
-    activeEffect = { type: "slow", expiresAt: now + 4000 };
+    activeEffect = { type: "slow", expiresAt: now + 5000 };
     return;
   }
 
   if (roll < bucket * 4) {
     speedMultiplier = 1.3;
-    activeEffect = { type: "fast", expiresAt: now + 4000 };
+    activeEffect = { type: "fast", expiresAt: now + 5000 };
     return;
   }
 
@@ -667,10 +668,36 @@ function queueMysteryPlan(targetPipeId) {
 }
 
 function maybeQueueMysteryPlans() {
-  while (score >= nextRecurringMysteryThreshold) {
-    queueMysteryPlan(totalPipesCreated + 3);
-    nextRecurringMysteryThreshold += 15;
+  if (!firstMysteryQueued && score >= 15) {
+    // Score 15 milestone: place between columns 18 and 19.
+    queueMysteryPlan(19);
+    firstMysteryQueued = true;
   }
+
+  while (firstMysteryQueued && score >= nextMysteryScoreThreshold) {
+    // For score 22 and every +7 after, deploy after column (score + 3).
+    const anchorColumn = nextMysteryScoreThreshold + 3;
+    queueMysteryPlan(anchorColumn + 1);
+    nextMysteryScoreThreshold += 7;
+  }
+}
+
+function getActiveEffectLabel() {
+  if (activeEffect) {
+    const labels = {
+      tiny: "Tiny",
+      large: "Large",
+      slow: "Slow Pipes",
+      fast: "Fast Pipes"
+    };
+    return labels[activeEffect.type] || "Active";
+  }
+
+  if (godModeCharges > 0) {
+    return "God Mode Charge";
+  }
+
+  return "None";
 }
 
 function spawnMysteryBoxAt(x, y) {
@@ -809,7 +836,8 @@ function resetRoundState() {
   totalPipesCreated = 0;
   mysteryBox = null;
   mysteryPlans = [];
-  nextRecurringMysteryThreshold = 15;
+  firstMysteryQueued = false;
+  nextMysteryScoreThreshold = 22;
   godModeCharges = 0;
   invincibleUntil = 0;
   clearTimedEffect();
@@ -990,7 +1018,8 @@ function update() {
   maybeSpawnMysteryBoxFromPlans();
 
   const difficulty = Math.min(score, 30);
-  const pipeSpeed = (2.7 + difficulty * 0.03) * 0.7 * getPipeSpeedMultiplier();
+  const scoreSpeedMultiplier = Math.pow(1.02, Math.floor(score / 25));
+  const pipeSpeed = (2.7 + difficulty * 0.03) * 0.7 * getPipeSpeedMultiplier() * scoreSpeedMultiplier;
   const spawnSpacing = Math.max(200, 280 - difficulty * 2);
 
   bird.velocity += bird.gravity;
@@ -1280,6 +1309,11 @@ function draw() {
   const scoreX = hudX + ctx.measureText(playerLabel).width + Math.round(10 * uiScale);
   ctx.font = "bold " + scoreFont + "px Arial";
   ctx.fillText(score, scoreX, hudY);
+
+  const effectFont = Math.round(clamp(16 * uiScale, 13, 20));
+  const effectY = hudY + Math.round(clamp(24 * uiScale, 20, 30));
+  ctx.font = "700 " + effectFont + "px Arial";
+  ctx.fillText("Effect: " + getActiveEffectLabel(), hudX, effectY);
 
   if (gameOver) {
     const titleFont = Math.round(clamp(42 * uiScale, 32, 50));
