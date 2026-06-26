@@ -294,6 +294,7 @@ let speedMultiplier = 1;
 let sizeMultiplier = 1;
 let invincibleUntil = 0;
 let lastRoundEffectLabel = "None";
+let topScorerGodModeReady = false;
 const HUD_PANEL_MARGIN = 12;
 let hudPanelDragState = {
   active: false,
@@ -748,6 +749,16 @@ function hasGodModeActive() {
   return now < invincibleUntil || Boolean(activeEffect && activeEffect.type === "god" && now < activeEffect.expiresAt);
 }
 
+function tryActivateTopScorerGodMode() {
+  if (!topScorerGodModeReady || hasGodModeActive()) {
+    return false;
+  }
+
+  topScorerGodModeReady = false;
+  activateGodMode(2000);
+  return true;
+}
+
 function applyMysteryEffect() {
   const roll = Math.random();
   const now = Date.now();
@@ -997,12 +1008,13 @@ function resetRoundState() {
   firstMysteryQueued = false;
   nextMysteryScoreThreshold = 22;
   invincibleUntil = 0;
+  topScorerGodModeReady = false;
   clearTimedEffect();
 }
 
 function grantTopScorerStartingGodMode() {
   if (isCurrentPlayerTopScorer()) {
-    activateGodMode(2000);
+    topScorerGodModeReady = true;
   }
 }
 
@@ -1207,7 +1219,9 @@ function update() {
       bird.x - bird.size < pipe.x + pipe.width &&
       (bird.y - bird.size < pipe.top || bird.y + bird.size > pipe.bottom)
     ) {
-      setGameOver();
+      if (!tryActivateTopScorerGodMode()) {
+        setGameOver();
+      }
     }
   });
 
@@ -1224,6 +1238,9 @@ function update() {
 
   if (bird.y + bird.size > gameHeight || bird.y - bird.size < 0) {
     if (hasGodModeActive()) {
+      bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
+      bird.velocity = 0;
+    } else if (tryActivateTopScorerGodMode()) {
       bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
       bird.velocity = 0;
     } else {
