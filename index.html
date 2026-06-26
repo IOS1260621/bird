@@ -202,6 +202,17 @@ function formatPlayedAt(isoTime) {
   return date.toLocaleString();
 }
 
+function formatPlayedAtShort(isoTime) {
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
+
+  const datePart = date.toLocaleDateString();
+  const timePart = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return datePart + " " + timePart;
+}
+
 function normalizedName(name) {
   return sanitizeName(name).toLowerCase();
 }
@@ -216,6 +227,18 @@ function getScoresForPlayer(name) {
       }
       return new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime();
     });
+}
+
+function getTopScores(limit) {
+  return scoreHistory
+    .slice()
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime();
+    })
+    .slice(0, limit);
 }
 
 function loadScoreHistory() {
@@ -594,6 +617,7 @@ function draw() {
     const titleFont = Math.round(clamp(42 * uiScale, 32, 50));
     const bodyFont = Math.round(clamp(24 * uiScale, 19, 30));
     const subTextFont = Math.round(clamp(17 * uiScale, 14, 22));
+    const goldFont = Math.round(clamp(30 * uiScale, 24, 38));
     const hintFont = Math.round(clamp(20 * uiScale, 16, 24));
 
     const currentEntry = lastSavedEntry || {
@@ -601,9 +625,8 @@ function draw() {
       score,
       playedAt: new Date().toISOString()
     };
-    const previousScores = getScoresForPlayer(playerName)
-      .filter(entry => entry.playedAt !== currentEntry.playedAt)
-      .slice(0, 5);
+    const topScores = getTopScores(3);
+    const topEntry = topScores[0] || currentEntry;
 
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, gameWidth, gameHeight);
@@ -619,23 +642,76 @@ function draw() {
     ctx.font = subTextFont + "px Arial";
     ctx.fillText("Played: " + formatPlayedAt(currentEntry.playedAt), gameWidth / 2, gameHeight / 2 + 30);
 
-    let listY = gameHeight / 2 + 58;
-    const listStep = Math.round(clamp(20 * uiScale, 16, 24));
-    if (previousScores.length > 0) {
-      ctx.fillText("Previous scores for " + playerName + ":", gameWidth / 2, listY);
-      listY += listStep;
-      previousScores.forEach(entry => {
-        const line = entry.score + " pts - " + formatPlayedAt(entry.playedAt);
-        ctx.fillText(line, gameWidth / 2, listY);
-        listY += listStep;
-      });
-    } else {
-      ctx.fillText("No previous scores for " + playerName, gameWidth / 2, listY);
-      listY += listStep;
+    ctx.fillStyle = "#fbbf24";
+    ctx.font = "900 " + goldFont + "px Impact, Arial Black, sans-serif";
+    ctx.fillText("#1 " + topEntry.name + " - " + topEntry.score, gameWidth / 2, gameHeight / 2 + 68);
+
+    const tableWidth = clamp(gameWidth * 0.9, 300, 760);
+    const rowHeight = Math.round(clamp(30 * uiScale, 24, 36));
+    const headerHeight = rowHeight;
+    const tableRows = 3;
+    const tableHeight = headerHeight + rowHeight * tableRows;
+    const tableX = (gameWidth - tableWidth) / 2;
+    const tableY = gameHeight / 2 + 92;
+
+    ctx.fillStyle = "rgba(15,23,42,0.72)";
+    ctx.fillRect(tableX, tableY, tableWidth, tableHeight);
+    ctx.strokeStyle = "rgba(255,255,255,0.45)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tableX, tableY, tableWidth, tableHeight);
+
+    const colRank = tableX + tableWidth * 0.09;
+    const colUser = tableX + tableWidth * 0.33;
+    const colScore = tableX + tableWidth * 0.57;
+    const colPlayed = tableX + tableWidth * 0.81;
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#e2e8f0";
+    ctx.font = "700 " + Math.round(clamp(14 * uiScale, 12, 17)) + "px Arial";
+    ctx.fillText("Rank", colRank, tableY + headerHeight * 0.66);
+    ctx.fillText("User", colUser, tableY + headerHeight * 0.66);
+    ctx.fillText("Score", colScore, tableY + headerHeight * 0.66);
+    ctx.fillText("Date/Time", colPlayed, tableY + headerHeight * 0.66);
+
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    for (let i = 1; i <= tableRows; i += 1) {
+      const y = tableY + headerHeight + rowHeight * i;
+      ctx.beginPath();
+      ctx.moveTo(tableX, y);
+      ctx.lineTo(tableX + tableWidth, y);
+      ctx.stroke();
     }
 
+    const fallbackRows = topScores.slice();
+    while (fallbackRows.length < 3) {
+      fallbackRows.push(null);
+    }
+
+    fallbackRows.forEach((entry, idx) => {
+      const rowCenterY = tableY + headerHeight + rowHeight * idx + rowHeight * 0.66;
+      const isTop = idx === 0 && entry;
+
+      ctx.font = (isTop ? "900 " : "700 ") + Math.round(clamp((isTop ? 16 : 14) * uiScale, 12, isTop ? 22 : 18)) + "px Arial";
+      ctx.fillStyle = isTop ? "#fbbf24" : "#f8fafc";
+
+      if (!entry) {
+        ctx.fillText("-", colRank, rowCenterY);
+        ctx.fillText("-", colUser, rowCenterY);
+        ctx.fillText("-", colScore, rowCenterY);
+        ctx.fillText("-", colPlayed, rowCenterY);
+        return;
+      }
+
+      ctx.fillText(String(idx + 1), colRank, rowCenterY);
+      ctx.fillText(entry.name, colUser, rowCenterY);
+      ctx.fillText(String(entry.score), colScore, rowCenterY);
+      ctx.fillText(formatPlayedAtShort(entry.playedAt), colPlayed, rowCenterY);
+    });
+
+    const hintY = Math.min(gameHeight - 24, tableY + tableHeight + Math.round(clamp(28 * uiScale, 22, 36)));
+    ctx.fillStyle = "#ffffff";
     ctx.font = hintFont + "px Arial";
-    ctx.fillText("Press Start Game to play again", gameWidth / 2, Math.min(gameHeight - 24, listY + 8));
+    ctx.fillText("Press Start Game to play again", gameWidth / 2, hintY);
     ctx.textAlign = "left";
   }
 }
