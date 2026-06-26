@@ -828,10 +828,6 @@ function maybeQueueMysteryPlans() {
 }
 
 function getActiveEffectLabel() {
-  if (gameOver) {
-    return lastRoundEffectLabel;
-  }
-
   if (activeEffect) {
     const labels = {
       tiny: "Tiny",
@@ -841,6 +837,10 @@ function getActiveEffectLabel() {
       god: "God Mode"
     };
     return labels[activeEffect.type] || "Active";
+  }
+
+  if (lastRoundEffectLabel && lastRoundEffectLabel !== "None") {
+    return lastRoundEffectLabel;
   }
 
   return "None";
@@ -1015,6 +1015,7 @@ function resetRoundState() {
 function grantTopScorerStartingGodMode() {
   if (isCurrentPlayerTopScorer()) {
     topScorerGodModeReady = true;
+    rememberRoundEffect("God Mode");
   }
 }
 
