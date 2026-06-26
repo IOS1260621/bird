@@ -1360,7 +1360,11 @@ window.addEventListener("resize", () => {
 function createPipe() {
   const difficulty = Math.min(score, 30);
   const baseGap = Math.max(158, Math.min(228, Math.floor(gameHeight * 0.288)));
-  const gap = Math.max(142, baseGap - difficulty) * 1.32;
+  // At 50 pts reduce by 4%; at 100+ pts reduce a further 5% for every additional 50 pts.
+  const gapFactor = score >= 50
+    ? 0.96 * Math.pow(0.95, Math.floor((score - 50) / 50))
+    : 1.0;
+  const gap = Math.max(142, baseGap - difficulty) * 1.32 * gapFactor;
   const margin = Math.max(50, Math.floor(gameHeight * 0.1));
   const maxTop = Math.max(margin + 1, gameHeight - gap - margin);
   const topHeight = Math.random() * (maxTop - margin) + margin;
