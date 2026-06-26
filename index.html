@@ -292,8 +292,8 @@ let nextMysteryScoreThreshold = 22;
 let activeEffect = null;
 let speedMultiplier = 1;
 let sizeMultiplier = 1;
-let godModeCharges = 0;
 let invincibleUntil = 0;
+let lastRoundEffectLabel = "None";
 const HUD_PANEL_MARGIN = 12;
 let hudPanelDragState = {
   active: false,
@@ -722,10 +722,25 @@ function getPipeSpeedMultiplier() {
 }
 
 function clearTimedEffect() {
+  if (activeEffect && activeEffect.type === "god") {
+    invincibleUntil = 0;
+  }
   activeEffect = null;
   speedMultiplier = 1;
   sizeMultiplier = 1;
   recalculateBirdSize();
+}
+
+function rememberRoundEffect(label) {
+  lastRoundEffectLabel = label;
+}
+
+function activateGodMode(durationMs) {
+  const now = Date.now();
+  clearTimedEffect();
+  invincibleUntil = now + durationMs;
+  activeEffect = { type: "god", expiresAt: now + durationMs };
+  rememberRoundEffect("God Mode");
 }
 
 function applyMysteryEffect() {
@@ -740,6 +755,7 @@ function applyMysteryEffect() {
     sizeMultiplier = 0;
     recalculateBirdSize();
     activeEffect = { type: "tiny", expiresAt: now + 5000 };
+    rememberRoundEffect("Tiny");
     return;
   }
 
@@ -747,23 +763,25 @@ function applyMysteryEffect() {
     sizeMultiplier = 1.5;
     recalculateBirdSize();
     activeEffect = { type: "large", expiresAt: now + 5000 };
+    rememberRoundEffect("Large");
     return;
   }
 
   if (roll < bucket * 3) {
     speedMultiplier = 0.5;
     activeEffect = { type: "slow", expiresAt: now + 5000 };
+    rememberRoundEffect("Slow Pipes");
     return;
   }
 
   if (roll < bucket * 4) {
     speedMultiplier = 1.3;
     activeEffect = { type: "fast", expiresAt: now + 5000 };
+    rememberRoundEffect("Fast Pipes");
     return;
   }
 
-  // One free collision pass that remains until used.
-  godModeCharges = 1;
+  activateGodMode(3000);
 }
 
 function maybeExpireEffect() {
@@ -794,18 +812,19 @@ function maybeQueueMysteryPlans() {
 }
 
 function getActiveEffectLabel() {
+  if (gameOver) {
+    return lastRoundEffectLabel;
+  }
+
   if (activeEffect) {
     const labels = {
       tiny: "Tiny",
       large: "Large",
       slow: "Slow Pipes",
-      fast: "Fast Pipes"
+      fast: "Fast Pipes",
+      god: "God Mode"
     };
     return labels[activeEffect.type] || "Active";
-  }
-
-  if (godModeCharges > 0) {
-    return "God Mode Charge";
   }
 
   return "None";
@@ -969,11 +988,17 @@ function resetRoundState() {
   totalPipesCreated = 0;
   mysteryBox = null;
   mysteryPlans = [];
+  lastRoundEffectLabel = "None";
   firstMysteryQueued = false;
   nextMysteryScoreThreshold = 22;
-  godModeCharges = 0;
   invincibleUntil = 0;
   clearTimedEffect();
+}
+
+function grantTopScorerStartingGodMode() {
+  if (isCurrentPlayerTopScorer()) {
+    activateGodMode(3000);
+  }
 }
 
 function startGame() {
@@ -983,6 +1008,7 @@ function startGame() {
     return;
   }
   resetRoundState();
+  grantTopScorerStartingGodMode();
   gameStarted = true;
   updateStartButtonLabel();
   updateHudVisibility();
@@ -1176,12 +1202,7 @@ function update() {
       bird.x - bird.size < pipe.x + pipe.width &&
       (bird.y - bird.size < pipe.top || bird.y + bird.size > pipe.bottom)
     ) {
-      if (godModeCharges > 0) {
-        godModeCharges = 0;
-        invincibleUntil = Date.now() + 800;
-      } else {
-        setGameOver();
-      }
+      setGameOver();
     }
   });
 
