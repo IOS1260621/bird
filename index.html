@@ -440,6 +440,34 @@ function update() {
   }
 }
 
+function drawColumnLabel(text, x, y, width, height) {
+  if (height < 36) {
+    return;
+  }
+
+  const fontFamily = "Impact, Arial Black, sans-serif";
+  const maxTextWidth = width * 0.88;
+  const maxTextHeight = height * 0.35;
+  let fontSize = Math.floor(clamp(Math.min(width * 0.62, maxTextHeight), 16, 56));
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "#0f172a";
+
+  // Shrink until the label fits the column width.
+  while (fontSize > 12) {
+    ctx.font = "900 " + fontSize + "px " + fontFamily;
+    if (ctx.measureText(text).width <= maxTextWidth) {
+      break;
+    }
+    fontSize -= 1;
+  }
+
+  ctx.fillText(text, x + width / 2, y + height / 2);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+}
+
 function draw() {
   ctx.clearRect(0, 0, gameWidth, gameHeight);
 
@@ -455,6 +483,9 @@ function draw() {
     ctx.fillStyle = "#94a3b8";
     ctx.fillRect(pipe.x, pipe.top - 8, pipe.width, 8);
     ctx.fillRect(pipe.x, pipe.bottom, pipe.width, 8);
+
+    drawColumnLabel("CHUB", pipe.x, 0, pipe.width, pipe.top);
+    drawColumnLabel("DOO", pipe.x, pipe.bottom, pipe.width, gameHeight - pipe.bottom);
 
     // Gantry openings at the edge of the playable gap.
     const topGantryY = pipe.top - gantryHeight;
