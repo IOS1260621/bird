@@ -25,14 +25,89 @@
       height: 100dvh;
       background: linear-gradient(#70c5ce, #ffffff);
     }
+    .hud-panel {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      width: min(88vw, 340px);
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 12px;
+      padding: 10px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+      touch-action: auto;
+      pointer-events: auto;
+    }
+    .hud-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .hud-row label {
+      font-size: 13px;
+      font-weight: 700;
+      color: #111827;
+      white-space: nowrap;
+    }
+    .hud-row input {
+      flex: 1;
+      font-size: 14px;
+      padding: 7px 9px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      outline: none;
+      min-width: 0;
+    }
+    .hud-row input:focus {
+      border-color: #0284c7;
+      box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
+    }
+    .score-list-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    .score-list {
+      margin: 0;
+      padding-left: 18px;
+      max-height: min(35vh, 260px);
+      overflow-y: auto;
+      color: #111827;
+      font-size: 12px;
+    }
+    .score-list li {
+      margin: 0 0 4px;
+      line-height: 1.25;
+    }
   </style>
 </head>
 <body>
+<div class="hud-panel" id="hudPanel">
+  <div class="hud-row">
+    <label for="playerNameInput">Player</label>
+    <input id="playerNameInput" type="text" maxlength="20" placeholder="Enter your name">
+  </div>
+  <div class="score-list-title" id="scoreListTitle">Recent scores</div>
+  <ol class="score-list" id="scoreList"></ol>
+</div>
 <canvas id="game"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
+const hudPanel = document.getElementById("hudPanel");
+const playerNameInput = document.getElementById("playerNameInput");
+const scoreList = document.getElementById("scoreList");
+const scoreListTitle = document.getElementById("scoreListTitle");
+
+const PLAYER_NAME_KEY = "inventorpath_player_name";
+const SCORE_HISTORY_KEY = "inventorpath_score_history";
+
+let playerName = localStorage.getItem(PLAYER_NAME_KEY) || "Player";
+let scoreHistory = [];
 
 let gameWidth = 0;
 let gameHeight = 0;
@@ -81,6 +156,115 @@ applyPhysicsTuning();
 let pipes = [];
 let score = 0;
 let gameOver = false;
+let scoreSavedForRound = false;
+let lastSavedEntry = null;
+
+function sanitizeName(name) {
+  const trimmed = name.trim().replace(/\s+/g, " ");
+  return trimmed.slice(0, 20);
+}
+
+function formatPlayedAt(isoTime) {
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown time";
+  }
+  return date.toLocaleString();
+}
+
+function normalizedName(name) {
+  return sanitizeName(name).toLowerCase();
+}
+
+function getScoresForPlayer(name) {
+  const nameKey = normalizedName(name);
+  return scoreHistory
+    .filter(entry => normalizedName(entry.name) === nameKey)
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      return new Date(b.playedAt).getTime() - new Date(a.playedAt).getTime();
+    });
+}
+
+function loadScoreHistory() {
+  try {
+    const raw = localStorage.getItem(SCORE_HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .filter(entry => entry && typeof entry.name === "string" && Number.isFinite(entry.score) && typeof entry.playedAt === "string")
+      .slice(0, 25);
+  } catch {
+    return [];
+  }
+}
+
+function saveScoreHistory() {
+  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, 25)));
+}
+
+function renderScoreHistory() {
+  scoreList.innerHTML = "";
+  scoreListTitle.textContent = "Top scores for " + playerName;
+
+  const playerScores = getScoresForPlayer(playerName);
+
+  if (playerScores.length === 0) {
+    const emptyItem = document.createElement("li");
+    emptyItem.textContent = "No games yet for this player";
+    scoreList.appendChild(emptyItem);
+    return;
+  }
+
+  playerScores.slice(0, 10).forEach(entry => {
+    const item = document.createElement("li");
+    item.textContent = entry.score + " points - " + formatPlayedAt(entry.playedAt);
+    scoreList.appendChild(item);
+  });
+}
+
+function applyPlayerNameFromInput() {
+  const nextName = sanitizeName(playerNameInput.value) || "Player";
+  playerName = nextName;
+  playerNameInput.value = nextName;
+  localStorage.setItem(PLAYER_NAME_KEY, nextName);
+}
+
+function persistCurrentScore() {
+  if (scoreSavedForRound) {
+    return;
+  }
+
+  scoreSavedForRound = true;
+  lastSavedEntry = {
+    name: playerName,
+    score,
+    playedAt: new Date().toISOString()
+  };
+  scoreHistory.unshift(lastSavedEntry);
+  scoreHistory = scoreHistory.slice(0, 25);
+  saveScoreHistory();
+  renderScoreHistory();
+}
+
+function setGameOver() {
+  if (gameOver) {
+    return;
+  }
+  gameOver = true;
+  persistCurrentScore();
+}
+
+playerNameInput.value = playerName;
+playerNameInput.addEventListener("change", applyPlayerNameFromInput);
+playerNameInput.addEventListener("blur", applyPlayerNameFromInput);
+scoreHistory = loadScoreHistory();
+renderScoreHistory();
 
 function flap() {
   if (gameOver) {
@@ -92,6 +276,10 @@ function flap() {
 }
 
 window.addEventListener("pointerdown", event => {
+  if (hudPanel.contains(event.target)) {
+    return;
+  }
+
   if (event.isPrimary) {
     event.preventDefault();
     flap();
@@ -163,14 +351,14 @@ function update() {
       bird.x - bird.size < pipe.x + pipe.width &&
       (bird.y - bird.size < pipe.top || bird.y + bird.size > pipe.bottom)
     ) {
-      gameOver = true;
+      setGameOver();
     }
   });
 
   pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
 
   if (bird.y + bird.size > gameHeight || bird.y - bird.size < 0) {
-    gameOver = true;
+    setGameOver();
   }
 }
 
@@ -208,7 +396,17 @@ function draw() {
   if (gameOver) {
     const titleFont = Math.round(clamp(42 * uiScale, 32, 50));
     const bodyFont = Math.round(clamp(24 * uiScale, 19, 30));
+    const subTextFont = Math.round(clamp(17 * uiScale, 14, 22));
     const hintFont = Math.round(clamp(20 * uiScale, 16, 24));
+
+    const currentEntry = lastSavedEntry || {
+      name: playerName,
+      score,
+      playedAt: new Date().toISOString()
+    };
+    const previousScores = getScoresForPlayer(playerName)
+      .filter(entry => entry.playedAt !== currentEntry.playedAt)
+      .slice(0, 5);
 
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, gameWidth, gameHeight);
@@ -221,18 +419,39 @@ function draw() {
     ctx.font = bodyFont + "px Arial";
     ctx.fillText("Score: " + score, gameWidth / 2, gameHeight / 2);
 
+    ctx.font = subTextFont + "px Arial";
+    ctx.fillText("Played: " + formatPlayedAt(currentEntry.playedAt), gameWidth / 2, gameHeight / 2 + 30);
+
+    let listY = gameHeight / 2 + 58;
+    const listStep = Math.round(clamp(20 * uiScale, 16, 24));
+    if (previousScores.length > 0) {
+      ctx.fillText("Previous scores for " + playerName + ":", gameWidth / 2, listY);
+      listY += listStep;
+      previousScores.forEach(entry => {
+        const line = entry.score + " pts - " + formatPlayedAt(entry.playedAt);
+        ctx.fillText(line, gameWidth / 2, listY);
+        listY += listStep;
+      });
+    } else {
+      ctx.fillText("No previous scores for " + playerName, gameWidth / 2, listY);
+      listY += listStep;
+    }
+
     ctx.font = hintFont + "px Arial";
-    ctx.fillText("Tap to restart", gameWidth / 2, gameHeight / 2 + 45);
+    ctx.fillText("Tap to restart", gameWidth / 2, Math.min(gameHeight - 24, listY + 8));
     ctx.textAlign = "left";
   }
 }
 
 function restart() {
+  applyPlayerNameFromInput();
   bird.y = gameHeight / 2;
   bird.velocity = 0;
   pipes = [];
   score = 0;
   gameOver = false;
+  scoreSavedForRound = false;
+  lastSavedEntry = null;
 }
 
 function loop() {
