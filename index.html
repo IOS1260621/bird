@@ -468,8 +468,58 @@ function drawColumnLabel(text, x, y, width, height) {
   ctx.textBaseline = "alphabetic";
 }
 
+function seededNoise(value) {
+  const s = Math.sin(value) * 10000;
+  return s - Math.floor(s);
+}
+
+function drawElectricity(pipe, timeMs) {
+  const startY = pipe.top + 2;
+  const endY = pipe.bottom - 2;
+  const gapHeight = endY - startY;
+  if (gapHeight < 28) {
+    return;
+  }
+
+  const arcCount = 3;
+  const segmentCount = 7;
+
+  for (let i = 0; i < arcCount; i += 1) {
+    const anchorX = pipe.x + pipe.width * (0.2 + i * 0.3);
+    const phase = timeMs * 0.013 + pipe.x * 0.04 + i * 11;
+    const jitter = pipe.width * 0.22;
+    const flicker = 0.55 + 0.45 * Math.sin(phase * 1.9);
+
+    ctx.beginPath();
+    ctx.moveTo(anchorX, startY);
+
+    for (let step = 1; step < segmentCount; step += 1) {
+      const t = step / segmentCount;
+      const y = startY + gapHeight * t;
+      const xJitter = (seededNoise(phase + step * 2.17) - 0.5) * jitter;
+      ctx.lineTo(anchorX + xJitter, y);
+    }
+
+    ctx.lineTo(anchorX, endY);
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(56, 189, 248, " + (0.32 + flicker * 0.28) + ")";
+    ctx.lineWidth = 6;
+    ctx.shadowColor = "rgba(56, 189, 248, 0.8)";
+    ctx.shadowBlur = 12;
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(224, 242, 254, " + (0.6 + flicker * 0.35) + ")";
+    ctx.lineWidth = 2;
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 function draw() {
   ctx.clearRect(0, 0, gameWidth, gameHeight);
+  const nowMs = performance.now();
 
   // Pipes
   pipes.forEach(pipe => {
@@ -503,6 +553,8 @@ function draw() {
       ctx.fillRect(pipe.x + pipe.width * 0.2, topGantryY + gantryHeight * 0.3, pipe.width * 0.6, gantryHeight * 0.4);
       ctx.fillRect(pipe.x + pipe.width * 0.2, bottomGantryY + gantryHeight * 0.3, pipe.width * 0.6, gantryHeight * 0.4);
     }
+
+    drawElectricity(pipe, nowMs);
   });
 
   // Player character (dog image when available, fallback to circle while loading).
