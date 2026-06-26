@@ -82,6 +82,23 @@
       margin: 0 0 4px;
       line-height: 1.25;
     }
+    .hud-actions {
+      margin-top: 10px;
+    }
+    .start-button {
+      width: 100%;
+      border: 0;
+      border-radius: 10px;
+      background: #0284c7;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+    .start-button:active {
+      transform: translateY(1px);
+    }
   </style>
 </head>
 <body>
@@ -92,6 +109,9 @@
   </div>
   <div class="score-list-title" id="scoreListTitle">Recent scores</div>
   <ol class="score-list" id="scoreList"></ol>
+  <div class="hud-actions">
+    <button class="start-button" id="startGameButton" type="button">Start Game</button>
+  </div>
 </div>
 <canvas id="game"></canvas>
 
@@ -102,6 +122,7 @@ const hudPanel = document.getElementById("hudPanel");
 const playerNameInput = document.getElementById("playerNameInput");
 const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
+const startGameButton = document.getElementById("startGameButton");
 
 const PLAYER_NAME_KEY = "inventorpath_player_name";
 const PLAYER_NAME_SET_KEY = "inventorpath_player_name_set";
@@ -158,6 +179,7 @@ applyPhysicsTuning();
 
 let pipes = [];
 let score = 0;
+let gameStarted = false;
 let gameOver = false;
 let scoreSavedForRound = false;
 let lastSavedEntry = null;
@@ -231,8 +253,30 @@ function renderScoreHistory() {
   });
 }
 
+function updateStartButtonLabel() {
+  startGameButton.textContent = gameOver ? "Play Again" : "Start Game";
+}
+
 function updateHudVisibility() {
-  hudPanel.style.display = gameOver || !hasSetPlayerName ? "block" : "none";
+  hudPanel.style.display = !gameStarted || gameOver ? "block" : "none";
+}
+
+function resetRoundState() {
+  bird.y = gameHeight / 2;
+  bird.velocity = 0;
+  pipes = [];
+  score = 0;
+  gameOver = false;
+  scoreSavedForRound = false;
+  lastSavedEntry = null;
+}
+
+function startGame() {
+  applyPlayerNameFromInput();
+  resetRoundState();
+  gameStarted = true;
+  updateStartButtonLabel();
+  updateHudVisibility();
 }
 
 function applyPlayerNameFromInput() {
@@ -276,6 +320,7 @@ function setGameOver() {
   }
   gameOver = true;
   persistCurrentScore();
+  updateStartButtonLabel();
   updateHudVisibility();
 }
 
@@ -288,17 +333,19 @@ playerNameInput.addEventListener("keydown", event => {
     playerNameInput.blur();
   }
 });
+startGameButton.addEventListener("click", startGame);
 scoreHistory = loadScoreHistory();
 renderScoreHistory();
+updateStartButtonLabel();
 updateHudVisibility();
 
 function flap() {
-  if (gameOver) {
-    restart();
-  } else {
-    // Keep taps responsive without stacking overly strong upward boosts.
-    bird.velocity = Math.min(bird.velocity, bird.jump);
+  if (!gameStarted || gameOver) {
+    return;
   }
+
+  // Keep taps responsive without stacking overly strong upward boosts.
+  bird.velocity = Math.min(bird.velocity, bird.jump);
 }
 
 window.addEventListener("pointerdown", event => {
@@ -351,7 +398,7 @@ function createPipe() {
 }
 
 function update() {
-  if (gameOver) return;
+  if (!gameStarted || gameOver) return;
 
   const difficulty = Math.min(score, 30);
   const pipeSpeed = (2.7 + difficulty * 0.03) * 0.7;
@@ -464,21 +511,13 @@ function draw() {
     }
 
     ctx.font = hintFont + "px Arial";
-    ctx.fillText("Tap to restart", gameWidth / 2, Math.min(gameHeight - 24, listY + 8));
+    ctx.fillText("Press Start Game to play again", gameWidth / 2, Math.min(gameHeight - 24, listY + 8));
     ctx.textAlign = "left";
   }
 }
 
 function restart() {
-  applyPlayerNameFromInput();
-  bird.y = gameHeight / 2;
-  bird.velocity = 0;
-  pipes = [];
-  score = 0;
-  gameOver = false;
-  scoreSavedForRound = false;
-  lastSavedEntry = null;
-  updateHudVisibility();
+  startGame();
 }
 
 function loop() {
