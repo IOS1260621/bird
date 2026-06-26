@@ -743,6 +743,10 @@ function activateGodMode(durationMs) {
   rememberRoundEffect("God Mode");
 }
 
+function hasGodModeActive() {
+  return Date.now() < invincibleUntil;
+}
+
 function applyMysteryEffect() {
   const roll = Math.random();
   const now = Date.now();
@@ -1197,7 +1201,7 @@ function update() {
     }
 
     if (
-      Date.now() >= invincibleUntil &&
+      !hasGodModeActive() &&
       bird.x + bird.size > pipe.x &&
       bird.x - bird.size < pipe.x + pipe.width &&
       (bird.y - bird.size < pipe.top || bird.y + bird.size > pipe.bottom)
@@ -1218,7 +1222,12 @@ function update() {
   }
 
   if (bird.y + bird.size > gameHeight || bird.y - bird.size < 0) {
-    setGameOver();
+    if (hasGodModeActive()) {
+      bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
+      bird.velocity = 0;
+    } else {
+      setGameOver();
+    }
   }
 }
 
