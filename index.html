@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V8</title>
+  <title>InventorPath Flappy Game V12</title>
   <style>
     html, body {
       width: 100%;
@@ -148,6 +148,57 @@
       line-height: 1.25;
       margin-bottom: 8px;
     }
+
+    .warning-note {
+      display: none;
+      color: #92400e;
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 11px;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+    .asset-warning {
+      display: none;
+      color: #991b1b;
+      background: #fee2e2;
+      border: 1px solid #fca5a5;
+      border-radius: 8px;
+      padding: 7px 9px;
+      font-size: 11px;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+    .admin-panel {
+      display: none;
+      border-top: 1px solid #e2e8f0;
+      margin-top: 10px;
+      padding-top: 8px;
+    }
+    .admin-panel-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #7c2d12;
+      margin-bottom: 6px;
+    }
+    .pause-button {
+      position: fixed;
+      right: 12px;
+      top: 12px;
+      z-index: 12;
+      display: none;
+      border: 1px solid rgba(15, 23, 42, 0.24);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #0f172a;
+      font-size: 13px;
+      font-weight: 800;
+      padding: 9px 12px;
+      cursor: pointer;
+      pointer-events: auto;
+    }
     .game-over-actions {
       position: fixed;
       z-index: 15;
@@ -189,6 +240,8 @@
     <label for="passwordInput">Pass</label>
     <input id="passwordInput" type="password" maxlength="30" placeholder="Password">
   </div>
+  <div class="warning-note" id="passwordWarning">Game accounts are saved only on this device. Do not use a real password.</div>
+  <div class="asset-warning" id="assetWarning"></div>
   <div class="hud-actions">
     <button class="secondary-button" id="createAccountButton" type="button">Create New User</button>
     <button class="secondary-button" id="loginButton" type="button">Log In</button>
@@ -205,11 +258,20 @@
   <div class="hud-actions">
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
   </div>
+  <div class="admin-panel" id="adminPanel">
+    <div class="admin-panel-title">Admin / Debug</div>
+    <button class="secondary-button" id="clearDailyScoresButton" type="button">Clear Daily Scores</button>
+    <button class="secondary-button" id="clearAllTimeScoresButton" type="button">Clear All-Time Scores</button>
+    <button class="secondary-button" id="clearAllUsersButton" type="button">Clear All Users</button>
+    <button class="secondary-button" id="clearSpriteChoicesButton" type="button">Clear Sprite Choices</button>
+    <button class="secondary-button" id="exportAllDataButton" type="button">Export All Game Data</button>
+  </div>
 </div>
 <div class="game-over-actions" id="gameOverActions">
   <button class="logout-gameover-button" id="gameOverLogoutButton" type="button">Log Out</button>
   <button class="play-again-button" id="gameOverPlayAgainButton" type="button">Play Again</button>
 </div>
+<button class="pause-button" id="pauseGameButton" type="button">Pause</button>
 <canvas id="game"></canvas>
 
 <script>
@@ -235,17 +297,74 @@ const createAccountButton = document.getElementById("createAccountButton");
 const loginButton = document.getElementById("loginButton");
 const logoutButton = document.getElementById("logoutButton");
 const downloadScoreFileButton = document.getElementById("downloadScoreFileButton");
+const passwordWarning = document.getElementById("passwordWarning");
+const assetWarning = document.getElementById("assetWarning");
+const adminPanel = document.getElementById("adminPanel");
+const clearDailyScoresButton = document.getElementById("clearDailyScoresButton");
+const clearAllTimeScoresButton = document.getElementById("clearAllTimeScoresButton");
+const clearAllUsersButton = document.getElementById("clearAllUsersButton");
+const clearSpriteChoicesButton = document.getElementById("clearSpriteChoicesButton");
+const exportAllDataButton = document.getElementById("exportAllDataButton");
+const pauseGameButton = document.getElementById("pauseGameButton");
 const ctGantryImage = new Image();
 
 const DEFAULT_DOG_SPRITE = "dog.svg";
 const AVAILABLE_DOG_SPRITES = ["dog.svg", "bruce.png", "gooboybruce.PNG", "smileB.png"];
 const PNG_DOG_SPRITES = AVAILABLE_DOG_SPRITES.filter(spriteName => spriteName.toLowerCase().endsWith(".png"));
 
+// ── Game settings ───────────────────────────────────────────────────────────
+const GAME_CONFIG = {
+  dataVersion: 12,
+  maxScoreHistoryEntries: 100,
+  firstMysteryScore: 5,
+  repeatMysteryStartScore: 22,
+  repeatMysteryInterval: 7,
+  godModeDurationMs: 2000,
+  regularEffectDurationMs: 15000,
+  collisionRadiusMultiplier: 0.82,
+  playerBaseSizeMin: 20,
+  playerBaseSizeMax: 26,
+  playerBaseSizeWidthRatio: 0.032,
+  gravityBase: 0.4,
+  gravityHeightDivisor: 5000,
+  gravityMin: 0.42,
+  gravityMax: 0.56,
+  jumpBase: 7.6,
+  jumpHeightDivisor: 980,
+  jumpMin: 7.8,
+  jumpMax: 8.9,
+  pipeWidth: 85.5,
+  pipeSpeedBase: 2.7,
+  pipeSpeedDifficultyStep: 0.03,
+  pipeSpeedGlobalMultiplier: 0.7,
+  pipeScoreSpeedStep: 1.02,
+  pipeScoreSpeedEvery: 25,
+  pipeSpawnSpacingBase: 280,
+  pipeSpawnSpacingDifficultyStep: 2,
+  pipeSpawnSpacingMin: 200,
+  pipeGapHeightRatio: 0.288,
+  pipeGapMin: 158,
+  pipeGapMax: 228,
+  pipeGapFloor: 142,
+  pipeGapScale: 1.32,
+  pipeGapScore50Factor: 0.96,
+  pipeGapEvery50Factor: 0.95,
+  mysteryEffectWeights: [
+    { type: "tiny", label: "Tiny", weight: 24 },
+    { type: "large", label: "Large", weight: 24 },
+    { type: "slow", label: "Slow Pipes", weight: 24 },
+    { type: "fast", label: "Fast Pipes", weight: 24 },
+    { type: "god", label: "God Mode", weight: 4 }
+  ]
+};
+
+
 // Version 2: preload all player sprites once and switch by name.
 // This prevents iPhone/GitHub Pages timing/caching issues where the selector
 // changed but the displayed Bruce image did not update reliably.
 const spriteImages = {};
 let currentSprite = DEFAULT_DOG_SPRITE;
+let missingAssetNames = [];
 
 AVAILABLE_DOG_SPRITES.forEach(spriteName => {
   const img = new Image();
@@ -255,11 +374,13 @@ AVAILABLE_DOG_SPRITES.forEach(spriteName => {
   };
   img.onerror = () => {
     console.warn("Missing or failed sprite image:", spriteName);
+    recordMissingAsset(spriteName);
   };
   img.src = spriteName;
   spriteImages[spriteName] = img;
 });
 
+ctGantryImage.onerror = () => recordMissingAsset("ct-gantry.svg");
 ctGantryImage.src = "ct-gantry.svg";
 
 const SCORE_HISTORY_KEY = "inventorpath_score_history";
@@ -271,6 +392,7 @@ const TOP3_FOREVER_KEY = "inventorpath_top3_forever";
 const PER_USER_TOP3_FOREVER_KEY = "inventorpath_per_user_top3_forever";
 const DAILY_STATS_KEY = "inventorpath_daily_stats";
 const LAST_RESET_DATE_KEY = "inventorpath_last_reset_date";
+const DATA_VERSION_KEY = "inventorpath_data_version";
 const INACTIVITY_DAYS = 14;
 const MS_PER_DAY = 86400000;
 
@@ -282,14 +404,17 @@ let pipes = [];
 let score = 0;
 let gameStarted = false;
 let gameOver = false;
+let gamePaused = false;
 let scoreSavedForRound = false;
 let lastSavedEntry = null;
 let totalPipesCreated = 0;
 let mysteryBox = null;
-let mysteryPlans = [];
 let firstMysteryQueued = false;
-let nextMysteryScoreThreshold = 22;
-let activeEffect = null;
+let nextMysteryScoreThreshold = GAME_CONFIG.firstMysteryScore;
+let activeEffects = {
+  size: null,
+  speed: null
+};
 let speedMultiplier = 1;
 let sizeMultiplier = 1;
 let invincibleUntil = 0;
@@ -310,6 +435,7 @@ function getUserKey(name) {
   return sanitizeUsername(name).toLowerCase();
 }
 
+// ── Storage / accounts ─────────────────────────────────────────────────────
 function loadUserAccounts() {
   try {
     const raw = localStorage.getItem(USER_ACCOUNTS_KEY);
@@ -340,17 +466,32 @@ function saveCurrentUserScoreFile() {
     return;
   }
 
+  const top3Scores = getTopThreeScoresForUser(playerName).map(entry => ({
+    score: entry.score,
+    playedAt: entry.playedAt
+  }));
+  const todayStats = getTodayStatsForPlayer(playerName) || {
+    userName: playerName,
+    gamesPlayed: 0,
+    highScore: 0,
+    totalScore: 0
+  };
+  const allTimeBest = top3Scores[0] || null;
+
   const scoreFile = {
     userName: playerName,
     updatedAt: new Date().toISOString(),
-    top3Scores: getTopThreeScoresForUser(playerName).map(entry => ({
-      score: entry.score,
-      playedAt: entry.playedAt
-    }))
+    top3Scores,
+    todayStats,
+    allTimeBest,
+    totalGamesToday: todayStats.gamesPlayed || 0,
+    currentSpriteChoice: getCurrentPlayerSpriteChoice()
   };
 
   localStorage.setItem(getScoreFileKey(playerName), JSON.stringify(scoreFile, null, 2));
 }
+
+
 
 
 function downloadCurrentUserScoreFile() {
@@ -361,15 +502,138 @@ function downloadCurrentUserScoreFile() {
 
   saveCurrentUserScoreFile();
   const raw = localStorage.getItem(getScoreFileKey(playerName)) || "{}";
-  const blob = new Blob([raw], { type: "application/json" });
+  downloadJsonText(raw, playerName.replace(/[^a-zA-Z0-9_-]/g, "_") + "_score_file.json");
+}
+
+
+
+
+
+function getLocalStorageKeys(prefix) {
+  const keys = [];
+  if (typeof localStorage.length === "number" && typeof localStorage.key === "function") {
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!prefix || (key && key.startsWith(prefix))) {
+        keys.push(key);
+      }
+    }
+    return keys;
+  }
+
+  return Object.keys(localStorage).filter(key => !prefix || key.startsWith(prefix));
+}
+
+function downloadJsonText(text, filename) {
+  const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = playerName.replace(/[^a-zA-Z0-9_-]/g, "_") + "_top3_scores.json";
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+function isAdminUser() {
+  const account = userAccounts[getUserKey(playerName)];
+  return Boolean(activeUserName && getUserKey(playerName) === "admin" && account && account.password === "Admin");
+}
+
+function renderAdminPanel() {
+  adminPanel.style.display = isAdminUser() ? "block" : "none";
+}
+
+function resetScoreUiAfterAdminChange() {
+  initializeDataVersionAndMigrations();
+scoreHistory = loadScoreHistory();
+  renderScoreHistory();
+  applyCurrentPlayerSprite();
+  draw();
+}
+
+function clearDailyScoresAdmin() {
+  if (!isAdminUser() || !window.confirm("Clear daily/current scores and daily stats?")) return;
+  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
+  localStorage.setItem(DAILY_STATS_KEY, JSON.stringify({}));
+  resetScoreUiAfterAdminChange();
+}
+
+function clearAllTimeScoresAdmin() {
+  if (!isAdminUser() || !window.confirm("Clear all-time global and per-user top scores?")) return;
+  localStorage.setItem(TOP3_FOREVER_KEY, JSON.stringify([]));
+  localStorage.setItem(PER_USER_TOP3_FOREVER_KEY, JSON.stringify({}));
+  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
+  getLocalStorageKeys(SCORE_FILE_PREFIX).forEach(key => localStorage.removeItem(key));
+  resetScoreUiAfterAdminChange();
+}
+
+function clearAllUsersAdmin() {
+  if (!isAdminUser() || !window.confirm("Clear all users, logout, and remove user score files?")) return;
+  getLocalStorageKeys(SCORE_FILE_PREFIX).forEach(key => localStorage.removeItem(key));
+  localStorage.setItem(USER_ACCOUNTS_KEY, JSON.stringify({}));
+  localStorage.removeItem(ACTIVE_USER_KEY);
+  userAccounts = {};
+  logoutAccount();
+}
+
+function clearSpriteChoicesAdmin() {
+  if (!isAdminUser() || !window.confirm("Clear saved sprite choices?")) return;
+  spriteChoicesByUser = {};
+  saveSpriteChoices();
+  applyCurrentPlayerSprite();
+}
+
+function exportAllGameDataAdmin() {
+  if (!isAdminUser()) return;
+  const exported = {};
+  getLocalStorageKeys("inventorpath_")
+    .sort()
+    .forEach(key => {
+      try {
+        exported[key] = JSON.parse(localStorage.getItem(key));
+      } catch {
+        exported[key] = localStorage.getItem(key);
+      }
+    });
+  downloadJsonText(JSON.stringify(exported, null, 2), "inventorpath_all_game_data.json");
+}
+
+function initializeDataVersionAndMigrations() {
+  const currentVersion = GAME_CONFIG.dataVersion;
+  const storedVersion = Number(localStorage.getItem(DATA_VERSION_KEY) || "0");
+
+  // V12 migration note:
+  // Existing V6-V11 localStorage records are left intact. The newer systems
+  // re-merge permanent global top 3 and per-user top 3 on load.
+  if (!Number.isFinite(storedVersion) || storedVersion < currentVersion) {
+    localStorage.setItem(DATA_VERSION_KEY, String(currentVersion));
+  }
+}
+
+function recordMissingAsset(assetName) {
+  if (!missingAssetNames.includes(assetName)) {
+    missingAssetNames.push(assetName);
+  }
+  renderMissingAssetWarning();
+}
+
+function renderMissingAssetWarning() {
+  if (!assetWarning) return;
+  if (missingAssetNames.length === 0) {
+    assetWarning.style.display = "none";
+    assetWarning.textContent = "";
+    return;
+  }
+  assetWarning.style.display = "block";
+  assetWarning.textContent = "Missing image file(s): " + missingAssetNames.join(", ");
+}
+
+function saveScoreToServer(entry) {
+  // Future public-release hook. localStorage scores are prototype-only and
+  // can be edited by users in browser developer tools.
+  // Example later: return fetch("/api/scores", { method: "POST", body: JSON.stringify(entry) });
 }
 
 function renderAuthStatus() {
@@ -378,6 +642,7 @@ function renderAuthStatus() {
     authNote.style.display = "none";
     authUserRow.style.display = "none";
     authPassRow.style.display = "none";
+    passwordWarning.style.display = "none";
     loginButton.style.display = "none";
     createAccountButton.style.display = "none";
     logoutButton.style.display = "block";
@@ -389,6 +654,7 @@ function renderAuthStatus() {
     authNote.style.display = "none";
     authUserRow.style.display = "flex";
     authPassRow.style.display = "flex";
+    passwordWarning.style.display = "block";
     loginButton.style.display = "block";
     createAccountButton.style.display = "block";
     logoutButton.style.display = "none";
@@ -396,9 +662,14 @@ function renderAuthStatus() {
     startGameButton.disabled = true;
     startGameButton.style.opacity = "0.55";
   }
+  renderAdminPanel();
+  updatePauseButtonVisibility();
 }
 
+
+
 function createAccount() {
+  const typedName = playerNameInput.value.trim();
   const name = sanitizeUsername(playerNameInput.value);
   const password = passwordInput.value;
   const userKey = getUserKey(name);
@@ -408,13 +679,20 @@ function createAccount() {
     return;
   }
 
+  if (typedName && typedName !== name) {
+    const okay = window.confirm("Your username will be saved as " + name + ". Continue?");
+    if (!okay) {
+      return;
+    }
+  }
+
   if (userAccounts[userKey]) {
     alert("That user already exists. Use Log In instead.");
     return;
   }
 
   // Static HTML version: password is stored locally in this browser only.
-  // This is not bank-level security, but it creates separate local player accounts.
+  // This is not real online security. Use simple game passwords only.
   userAccounts[userKey] = {
     userName: name,
     password: password,
@@ -434,6 +712,8 @@ function createAccount() {
   applyCurrentPlayerSprite();
   updateHudVisibility();
 }
+
+
 
 function loginAccount() {
   const name = sanitizeUsername(playerNameInput.value);
@@ -473,6 +753,7 @@ function logoutAccount() {
   updateHudVisibility();
 }
 
+// ── Sprite system ──────────────────────────────────────────────────────────
 function loadSpriteChoices() {
   try {
     const raw = localStorage.getItem(SPRITE_CHOICES_KEY);
@@ -535,13 +816,32 @@ function recalculateBirdSize() {
 }
 
 function applyPhysicsTuning() {
-  bird.baseSize = Math.round(clamp(gameWidth * 0.032, 20, 26));
+  bird.baseSize = Math.round(clamp(
+    gameWidth * GAME_CONFIG.playerBaseSizeWidthRatio,
+    GAME_CONFIG.playerBaseSizeMin,
+    GAME_CONFIG.playerBaseSizeMax
+  ));
   recalculateBirdSize();
-  bird.gravity = clamp(0.4 + gameHeight / 5000, 0.42, 0.56);
-  bird.jump = -clamp(7.6 + gameHeight / 980, 7.8, 8.9);
+  bird.gravity = clamp(
+    GAME_CONFIG.gravityBase + gameHeight / GAME_CONFIG.gravityHeightDivisor,
+    GAME_CONFIG.gravityMin,
+    GAME_CONFIG.gravityMax
+  );
+  bird.jump = -clamp(
+    GAME_CONFIG.jumpBase + gameHeight / GAME_CONFIG.jumpHeightDivisor,
+    GAME_CONFIG.jumpMin,
+    GAME_CONFIG.jumpMax
+  );
 }
 
+
+
 applyPhysicsTuning();
+
+
+function getCollisionRadius() {
+  return bird.size * GAME_CONFIG.collisionRadiusMultiplier;
+}
 
 function formatPlayedAt(isoTime) {
   const date = new Date(isoTime);
@@ -724,17 +1024,15 @@ function applyCurrentPlayerSprite() {
   }
 }
 
-function getPipeSpeedMultiplier() {
-  return speedMultiplier;
+// ── Effects system ──────────────────────────────────────────────────────────
+function recalculateEffectMultipliers() {
+  sizeMultiplier = activeEffects.size ? activeEffects.size.sizeMultiplier : 1;
+  speedMultiplier = activeEffects.speed ? activeEffects.speed.speedMultiplier : 1;
+  recalculateBirdSize();
 }
 
-function clearTimedEffect() {
-  // Clears only the regular mystery effect. God Mode is now stackable
-  // and stored separately as one or more death-shield charges.
-  activeEffect = null;
-  speedMultiplier = 1;
-  sizeMultiplier = 1;
-  recalculateBirdSize();
+function getPipeSpeedMultiplier() {
+  return speedMultiplier;
 }
 
 function normalizeEffectLabelForDeath(label) {
@@ -742,8 +1040,11 @@ function normalizeEffectLabelForDeath(label) {
     return "None";
   }
 
-  // Death screen should show the clean effect name, not state text.
   if (label === "God Mode Ready" || label === "God Mode Activated") {
+    return "God Mode";
+  }
+
+  if (label.startsWith("God Ready") || label.startsWith("God Mode Active")) {
     return "God Mode";
   }
 
@@ -756,10 +1057,30 @@ function rememberRoundEffect(label) {
 
 function addGodModeCharge() {
   godModeCharges += 1;
-  rememberRoundEffect("God Mode Ready");
+  rememberRoundEffect("God Mode");
 }
 
-function activateGodModeShield(durationMs) {
+function rescueFromDeath(collisionInfo) {
+  if (!collisionInfo) {
+    bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
+    bird.velocity = 0;
+    return;
+  }
+
+  if (collisionInfo.type === "pipe" && collisionInfo.pipe) {
+    const gapCenter = (collisionInfo.pipe.top + collisionInfo.pipe.bottom) * 0.5;
+    bird.y = clamp(gapCenter, bird.size, gameHeight - bird.size);
+    bird.velocity = 0;
+    return;
+  }
+
+  if (collisionInfo.type === "boundary") {
+    bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
+    bird.velocity = 0;
+  }
+}
+
+function activateGodModeShield(durationMs, collisionInfo) {
   if (godModeCharges <= 0) {
     return false;
   }
@@ -767,6 +1088,7 @@ function activateGodModeShield(durationMs) {
   godModeCharges -= 1;
   invincibleUntil = Date.now() + durationMs;
   rememberRoundEffect("God Mode");
+  rescueFromDeath(collisionInfo);
   return true;
 }
 
@@ -774,85 +1096,72 @@ function hasGodModeActive() {
   return Date.now() < invincibleUntil;
 }
 
-function tryActivateGodModeShield() {
+function tryActivateGodModeShield(collisionInfo) {
   if (hasGodModeActive()) {
+    rescueFromDeath(collisionInfo);
     return true;
   }
-  return activateGodModeShield(2000);
+  return activateGodModeShield(GAME_CONFIG.godModeDurationMs, collisionInfo);
+}
+
+function applyRegularMysteryEffect(effectType) {
+  const now = Date.now();
+  const expiresAt = now + GAME_CONFIG.regularEffectDurationMs;
+
+  const effectMap = {
+    tiny: { slot: "size", label: "Tiny", sizeMultiplier: 0.67 },
+    large: { slot: "size", label: "Large", sizeMultiplier: 1.5 },
+    slow: { slot: "speed", label: "Slow Pipes", speedMultiplier: 0.5 },
+    fast: { slot: "speed", label: "Fast Pipes", speedMultiplier: 1.3 }
+  };
+
+  const effect = effectMap[effectType];
+  if (!effect) return;
+
+  activeEffects[effect.slot] = {
+    ...effect,
+    type: effectType,
+    expiresAt
+  };
+  recalculateEffectMultipliers();
+  rememberRoundEffect(effect.label);
 }
 
 function applyMysteryEffect() {
-  const roll = Math.random();
-  const now = Date.now();
-  const bucket = 0.238;
+  const totalWeight = GAME_CONFIG.mysteryEffectWeights.reduce((sum, item) => sum + item.weight, 0);
+  let roll = Math.random() * totalWeight;
+  let chosen = GAME_CONFIG.mysteryEffectWeights[GAME_CONFIG.mysteryEffectWeights.length - 1];
 
-  if (roll < bucket) {
-    // Tiny effect: 33% smaller than normal for 15s.
-    // This can stack with saved or active God Mode.
-    clearTimedEffect();
-    sizeMultiplier = 0.67;
-    recalculateBirdSize();
-    activeEffect = { type: "tiny", expiresAt: now + 15000 };
-    rememberRoundEffect("Tiny");
+  for (const item of GAME_CONFIG.mysteryEffectWeights) {
+    roll -= item.weight;
+    if (roll <= 0) {
+      chosen = item;
+      break;
+    }
+  }
+
+  if (chosen.type === "god") {
+    addGodModeCharge();
     return;
   }
 
-  if (roll < bucket * 2) {
-    clearTimedEffect();
-    sizeMultiplier = 1.5;
-    recalculateBirdSize();
-    activeEffect = { type: "large", expiresAt: now + 15000 };
-    rememberRoundEffect("Large");
-    return;
-  }
-
-  if (roll < bucket * 3) {
-    clearTimedEffect();
-    speedMultiplier = 0.5;
-    activeEffect = { type: "slow", expiresAt: now + 15000 };
-    rememberRoundEffect("Slow Pipes");
-    return;
-  }
-
-  if (roll < bucket * 4) {
-    clearTimedEffect();
-    speedMultiplier = 1.3;
-    activeEffect = { type: "fast", expiresAt: now + 15000 };
-    rememberRoundEffect("Fast Pipes");
-    return;
-  }
-
-  // Mystery-box God Mode adds a saved death shield.
-  // It does not turn on immediately and does not erase Tiny/Large/Slow/Fast.
-  addGodModeCharge();
+  applyRegularMysteryEffect(chosen.type);
 }
 
 function maybeExpireEffect() {
-  if (activeEffect && Date.now() >= activeEffect.expiresAt) {
-    clearTimedEffect();
-  }
-}
+  const now = Date.now();
+  let changed = false;
 
-function queueMysteryPlan(targetPipeId) {
-  mysteryPlans.push({
-    targetPipeId
+  Object.keys(activeEffects).forEach(slot => {
+    const effect = activeEffects[slot];
+    if (effect && now >= effect.expiresAt) {
+      activeEffects[slot] = null;
+      changed = true;
+    }
   });
-}
 
-function maybeQueueMysteryPlans() {
-  if (!firstMysteryQueued && score >= 5) {
-    // Score 5 milestone: place between columns 8 and 9.
-    // The old V6/V9 placement used target pipe 19, which made the first box
-    // still appear around the old 15-point timing even after the score check moved to 5.
-    queueMysteryPlan(9);
-    firstMysteryQueued = true;
-  }
-
-  while (firstMysteryQueued && score >= nextMysteryScoreThreshold) {
-    // For score 22 and every +7 after, deploy after column (score + 3).
-    const anchorColumn = nextMysteryScoreThreshold + 3;
-    queueMysteryPlan(anchorColumn + 1);
-    nextMysteryScoreThreshold += 7;
+  if (changed) {
+    recalculateEffectMultipliers();
   }
 }
 
@@ -872,15 +1181,9 @@ function getCurrentEffectLabels(includeStateText) {
     labels.push("God Ready x" + godModeCharges);
   }
 
-  if (activeEffect) {
-    const effectLabels = {
-      tiny: "Tiny",
-      large: "Large",
-      slow: "Slow Pipes",
-      fast: "Fast Pipes"
-    };
-    labels.push(effectLabels[activeEffect.type] || "Active");
-  }
+  [activeEffects.size, activeEffects.speed].forEach(effect => {
+    if (effect) labels.push(effect.label);
+  });
 
   return labels;
 }
@@ -888,7 +1191,7 @@ function getCurrentEffectLabels(includeStateText) {
 function getEffectLabelForDeath() {
   const activeLabels = getCurrentEffectLabels(false);
   if (activeLabels.length > 0) {
-    return activeLabels.join(" + ");
+    return activeLabels.map(normalizeEffectLabelForDeath).join(" + ");
   }
 
   if (lastRoundEffectLabel && lastRoundEffectLabel !== "None") {
@@ -899,6 +1202,19 @@ function getEffectLabelForDeath() {
 }
 
 function getActiveEffectLabel() {
+
+  if (gamePaused && !gameOver) {
+    ctx.fillStyle = "rgba(0,0,0,0.42)";
+    ctx.fillRect(0, 0, gameWidth, gameHeight);
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.font = "bold " + Math.round(clamp(42 * uiScale, 32, 52)) + "px Arial";
+    ctx.fillText("Paused", gameWidth / 2, gameHeight / 2);
+    ctx.font = Math.round(clamp(18 * uiScale, 14, 24)) + "px Arial";
+    ctx.fillText("Tap Resume to continue", gameWidth / 2, gameHeight / 2 + Math.round(34 * uiScale));
+    ctx.textAlign = "left";
+  }
+
   if (gameOver) {
     return deathEffectLabel || "None";
   }
@@ -908,13 +1224,10 @@ function getActiveEffectLabel() {
     return labels.join(" + ");
   }
 
-  if (lastRoundEffectLabel && lastRoundEffectLabel !== "None") {
-    return normalizeEffectLabelForDeath(lastRoundEffectLabel);
-  }
-
   return "None";
 }
 
+// ── Mystery box system ──────────────────────────────────────────────────────
 function spawnMysteryBoxAt(x, y) {
   mysteryBox = {
     x,
@@ -924,35 +1237,50 @@ function spawnMysteryBoxAt(x, y) {
   };
 }
 
-function maybeSpawnMysteryBoxFromPlans() {
+function findBestMysterySpawnPoint() {
+  const futurePipes = pipes
+    .filter(pipe => pipe.x + pipe.width > bird.x + Math.round(80 * uiScale))
+    .sort((a, b) => a.x - b.x);
+
+  for (let i = 0; i < futurePipes.length - 1; i += 1) {
+    const leftPipe = futurePipes[i];
+    const rightPipe = futurePipes[i + 1];
+    const centerX = (leftPipe.x + leftPipe.width + rightPipe.x) * 0.5;
+    if (centerX > bird.x + Math.round(120 * uiScale) && centerX < gameWidth + Math.round(120 * uiScale)) {
+      const leftGapCenterY = (leftPipe.top + leftPipe.bottom) * 0.5;
+      const rightGapCenterY = (rightPipe.top + rightPipe.bottom) * 0.5;
+      return {
+        x: centerX,
+        y: clamp((leftGapCenterY + rightGapCenterY) * 0.5, 60, gameHeight - 60)
+      };
+    }
+  }
+
+  const referencePipe = futurePipes[0] || pipes[pipes.length - 1];
+  const fallbackY = referencePipe ? (referencePipe.top + referencePipe.bottom) * 0.5 : gameHeight * 0.5;
+  return {
+    x: gameWidth * 0.78,
+    y: clamp(fallbackY, 60, gameHeight - 60)
+  };
+}
+
+function maybeSpawnMysteryBoxForScore() {
   if (mysteryBox && mysteryBox.active) {
     return;
   }
 
-  if (mysteryPlans.length === 0) {
+  if (score < nextMysteryScoreThreshold) {
     return;
   }
 
-  const plan = mysteryPlans[0];
-  const leftPipe = pipes.find(pipe => pipe.id === plan.targetPipeId - 1);
-  const rightPipe = pipes.find(pipe => pipe.id === plan.targetPipeId);
+  const point = findBestMysterySpawnPoint();
+  spawnMysteryBoxAt(point.x, point.y);
 
-  if (leftPipe && rightPipe) {
-    const centerX = (leftPipe.x + leftPipe.width + rightPipe.x) * 0.5;
-    const leftGapCenterY = (leftPipe.top + leftPipe.bottom) * 0.5;
-    const rightGapCenterY = (rightPipe.top + rightPipe.bottom) * 0.5;
-    const centerY = (leftGapCenterY + rightGapCenterY) * 0.5;
-    spawnMysteryBoxAt(centerX, centerY);
-    mysteryPlans.shift();
-    return;
-  }
-
-  // Fallback if anchored columns have already passed the viewport.
-  if (pipes.length > 0 && pipes[0].id > plan.targetPipeId) {
-    const fallbackPipe = pipes[0];
-    const centerY = (fallbackPipe.top + fallbackPipe.bottom) * 0.5;
-    spawnMysteryBoxAt(gameWidth * 0.56, centerY);
-    mysteryPlans.shift();
+  if (!firstMysteryQueued) {
+    firstMysteryQueued = true;
+    nextMysteryScoreThreshold = GAME_CONFIG.repeatMysteryStartScore;
+  } else {
+    nextMysteryScoreThreshold += GAME_CONFIG.repeatMysteryInterval;
   }
 }
 
@@ -986,6 +1314,7 @@ function getBottomColumnLabel() {
   return "DOO";
 }
 
+// ── Score system ───────────────────────────────────────────────────────────
 function loadTop3Forever() {
   try {
     const raw = localStorage.getItem(TOP3_FOREVER_KEY);
@@ -1015,17 +1344,17 @@ function loadScoreHistory() {
       return [];
     }
 
-    const entries = parsed.filter(isValidScoreEntry).slice(0, 100);
+    const entries = parsed.filter(isValidScoreEntry).slice(0, GAME_CONFIG.maxScoreHistoryEntries);
 
     // Re-merge global top-3 forever so those records survive daily resets.
-    return mergeScoreEntries(entries, loadTop3Forever()).slice(0, 100);
+    return mergeScoreEntries(entries, loadTop3Forever()).slice(0, GAME_CONFIG.maxScoreHistoryEntries);
   } catch {
     return [];
   }
 }
 
 function saveScoreHistory() {
-  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, 100)));
+  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, GAME_CONFIG.maxScoreHistoryEntries)));
   updateTop3Forever();
   updatePerUserTop3Forever();
   saveCurrentUserScoreFile();
@@ -1055,7 +1384,7 @@ function purgeInactiveAccounts() {
     saveUserAccounts();
     saveSpriteChoices();
     // Write purged history, then reload to re-merge top-3-forever records.
-    localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, 100)));
+    localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, GAME_CONFIG.maxScoreHistoryEntries)));
     scoreHistory = loadScoreHistory();
   }
 }
@@ -1189,7 +1518,10 @@ function updateHudVisibility() {
   if (!gameOver) {
     gameOverActions.style.display = "none";
   }
+  updatePauseButtonVisibility();
 }
+
+
 
 function updateGameOverActionsLayout(tableX, tableY, tableWidth, tableHeight) {
   const actionsWidth = Math.min(tableWidth, 420);
@@ -1205,31 +1537,53 @@ function updateGameOverActionsLayout(tableX, tableY, tableWidth, tableHeight) {
   gameOverActions.style.top = Math.round(top) + "px";
 }
 
+
+function updatePauseButtonVisibility() {
+  pauseGameButton.style.display = gameStarted && !gameOver && activeUserName ? "block" : "none";
+  pauseGameButton.textContent = gamePaused ? "Resume" : "Pause";
+}
+
+function togglePause() {
+  if (!gameStarted || gameOver || !activeUserName) return;
+  gamePaused = !gamePaused;
+  updatePauseButtonVisibility();
+  draw();
+}
+
+// ── Game state ─────────────────────────────────────────────────────────────
 function resetRoundState() {
   bird.y = gameHeight / 2;
   bird.velocity = 0;
   pipes = [];
   score = 0;
   gameOver = false;
+  gamePaused = false;
   scoreSavedForRound = false;
   lastSavedEntry = null;
   totalPipesCreated = 0;
   mysteryBox = null;
-  mysteryPlans = [];
   lastRoundEffectLabel = "None";
   deathEffectLabel = "None";
   firstMysteryQueued = false;
-  nextMysteryScoreThreshold = 22;
+  nextMysteryScoreThreshold = GAME_CONFIG.firstMysteryScore;
   invincibleUntil = 0;
   godModeCharges = 0;
-  clearTimedEffect();
+  activeEffects = { size: null, speed: null };
+  speedMultiplier = 1;
+  sizeMultiplier = 1;
+  recalculateBirdSize();
+  updatePauseButtonVisibility();
 }
+
+
 
 function grantTopScorerStartingGodMode() {
   if (isCurrentPlayerTopScorer()) {
     addGodModeCharge();
   }
 }
+
+
 
 function startGame() {
   applyPlayerNameFromInput();
@@ -1240,9 +1594,13 @@ function startGame() {
   resetRoundState();
   grantTopScorerStartingGodMode();
   gameStarted = true;
+  gamePaused = false;
   updateStartButtonLabel();
   updateHudVisibility();
+  updatePauseButtonVisibility();
 }
+
+
 
 function applyPlayerNameFromInput() {
   if (!activeUserName) {
@@ -1272,7 +1630,7 @@ function persistCurrentScore() {
     playedAt: new Date().toISOString()
   };
   scoreHistory.unshift(lastSavedEntry);
-  scoreHistory = scoreHistory.slice(0, 100);
+  scoreHistory = scoreHistory.slice(0, GAME_CONFIG.maxScoreHistoryEntries);
   saveScoreHistory();
   recordDailyActivity(playerName, score);
 
@@ -1293,10 +1651,14 @@ function setGameOver() {
   }
   deathEffectLabel = getEffectLabelForDeath();
   gameOver = true;
+  gamePaused = false;
   persistCurrentScore();
   updateStartButtonLabel();
   updateHudVisibility();
+  updatePauseButtonVisibility();
 }
+
+
 
 playerNameInput.value = activeUserName ? playerName : "";
 playerNameInput.addEventListener("keydown", event => {
@@ -1317,6 +1679,12 @@ createAccountButton.addEventListener("click", createAccount);
 loginButton.addEventListener("click", loginAccount);
 logoutButton.addEventListener("click", logoutAccount);
 downloadScoreFileButton.addEventListener("click", downloadCurrentUserScoreFile);
+pauseGameButton.addEventListener("click", togglePause);
+clearDailyScoresButton.addEventListener("click", clearDailyScoresAdmin);
+clearAllTimeScoresButton.addEventListener("click", clearAllTimeScoresAdmin);
+clearAllUsersButton.addEventListener("click", clearAllUsersAdmin);
+clearSpriteChoicesButton.addEventListener("click", clearSpriteChoicesAdmin);
+exportAllDataButton.addEventListener("click", exportAllGameDataAdmin);
 gameOverLogoutButton.addEventListener("click", logoutAccount);
 gameOverPlayAgainButton.addEventListener("click", startGame);
 spritePicker.addEventListener("change", () => {
@@ -1352,12 +1720,13 @@ maybeResetScoresNightly();
 saveCurrentUserScoreFile();
 renderScoreHistory();
 renderAuthStatus();
+renderMissingAssetWarning();
 applyCurrentPlayerSprite();
 updateStartButtonLabel();
 updateHudVisibility();
 
 function flap() {
-  if (!gameStarted || gameOver) {
+  if (!gameStarted || gameOver || gamePaused) {
     return;
   }
 
@@ -1365,19 +1734,29 @@ function flap() {
   bird.velocity = Math.min(bird.velocity, bird.jump);
 }
 
+
+
 window.addEventListener("pointerdown", event => {
-  if (hudPanel.contains(event.target)) {
+  if (hudPanel.contains(event.target) || gameOverActions.contains(event.target) || pauseGameButton.contains(event.target)) {
     return;
   }
 
   if (event.isPrimary) {
     event.preventDefault();
+    if (activeUserName && !gameStarted) {
+      startGame();
+    }
     flap();
   }
 }, { passive: false });
 
 document.addEventListener("keydown", e => {
-  if (e.code === "Space") flap();
+  if (e.code === "Space") {
+    if (activeUserName && !gameStarted) {
+      startGame();
+    }
+    flap();
+  }
 });
 
 window.addEventListener("resize", () => {
@@ -1397,14 +1776,18 @@ window.addEventListener("resize", () => {
     .filter(pipe => pipe.bottom - pipe.top >= 144);
 });
 
+// ── Update loop ────────────────────────────────────────────────────────────
 function createPipe() {
   const difficulty = Math.min(score, 30);
-  const baseGap = Math.max(158, Math.min(228, Math.floor(gameHeight * 0.288)));
+  const baseGap = Math.max(
+    GAME_CONFIG.pipeGapMin,
+    Math.min(GAME_CONFIG.pipeGapMax, Math.floor(gameHeight * GAME_CONFIG.pipeGapHeightRatio))
+  );
   // At 50 pts reduce by 4%; at 100+ pts reduce a further 5% for every additional 50 pts.
   const gapFactor = score >= 50
-    ? 0.96 * Math.pow(0.95, Math.floor((score - 50) / 50))
+    ? GAME_CONFIG.pipeGapScore50Factor * Math.pow(GAME_CONFIG.pipeGapEvery50Factor, Math.floor((score - 50) / 50))
     : 1.0;
-  const gap = Math.max(142, baseGap - difficulty) * 1.32 * gapFactor;
+  const gap = Math.max(GAME_CONFIG.pipeGapFloor, baseGap - difficulty) * GAME_CONFIG.pipeGapScale * gapFactor;
   const margin = Math.max(50, Math.floor(gameHeight * 0.1));
   const maxTop = Math.max(margin + 1, gameHeight - gap - margin);
   const topHeight = Math.random() * (maxTop - margin) + margin;
@@ -1413,24 +1796,28 @@ function createPipe() {
   pipes.push({
     id: totalPipesCreated,
     x: gameWidth,
-    width: 85.5,
+    width: GAME_CONFIG.pipeWidth,
     top: topHeight,
     bottom: topHeight + gap,
     passed: false
   });
 }
 
+
+
 function update() {
-  if (!gameStarted || gameOver) return;
+  if (!gameStarted || gameOver || gamePaused) return;
 
   maybeExpireEffect();
-  maybeQueueMysteryPlans();
-  maybeSpawnMysteryBoxFromPlans();
 
   const difficulty = Math.min(score, 30);
-  const scoreSpeedMultiplier = Math.pow(1.02, Math.floor(score / 25));
-  const pipeSpeed = (2.7 + difficulty * 0.03) * 0.7 * getPipeSpeedMultiplier() * scoreSpeedMultiplier;
-  const spawnSpacing = Math.max(200, 280 - difficulty * 2);
+  const scoreSpeedMultiplier = Math.pow(GAME_CONFIG.pipeScoreSpeedStep, Math.floor(score / GAME_CONFIG.pipeScoreSpeedEvery));
+  const pipeSpeed = (GAME_CONFIG.pipeSpeedBase + difficulty * GAME_CONFIG.pipeSpeedDifficultyStep) *
+    GAME_CONFIG.pipeSpeedGlobalMultiplier * getPipeSpeedMultiplier() * scoreSpeedMultiplier;
+  const spawnSpacing = Math.max(
+    GAME_CONFIG.pipeSpawnSpacingMin,
+    GAME_CONFIG.pipeSpawnSpacingBase - difficulty * GAME_CONFIG.pipeSpawnSpacingDifficultyStep
+  );
 
   bird.velocity += bird.gravity;
   bird.y += bird.velocity;
@@ -1438,6 +1825,8 @@ function update() {
   if (pipes.length === 0 || pipes[pipes.length - 1].x < gameWidth - spawnSpacing) {
     createPipe();
   }
+
+  const collisionRadius = getCollisionRadius();
 
   pipes.forEach(pipe => {
     pipe.x -= pipeSpeed;
@@ -1447,19 +1836,21 @@ function update() {
       pipe.passed = true;
     }
 
-    if (
-      !hasGodModeActive() &&
-      bird.x + bird.size > pipe.x &&
-      bird.x - bird.size < pipe.x + pipe.width &&
-      (bird.y - bird.size < pipe.top || bird.y + bird.size > pipe.bottom)
-    ) {
-      if (!tryActivateGodModeShield()) {
+    const pipeCollision =
+      bird.x + collisionRadius > pipe.x &&
+      bird.x - collisionRadius < pipe.x + pipe.width &&
+      (bird.y - collisionRadius < pipe.top || bird.y + collisionRadius > pipe.bottom);
+
+    if (!hasGodModeActive() && pipeCollision) {
+      if (!tryActivateGodModeShield({ type: "pipe", pipe })) {
         setGameOver();
       }
     }
   });
 
   pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
+
+  maybeSpawnMysteryBoxForScore();
 
   if (mysteryBox && mysteryBox.active) {
     mysteryBox.x -= pipeSpeed;
@@ -1470,18 +1861,17 @@ function update() {
     }
   }
 
-  if (bird.y + bird.size > gameHeight || bird.y - bird.size < 0) {
+  const boundaryCollision = bird.y + collisionRadius > gameHeight || bird.y - collisionRadius < 0;
+  if (boundaryCollision) {
     if (hasGodModeActive()) {
-      bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
-      bird.velocity = 0;
-    } else if (tryActivateGodModeShield()) {
-      bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
-      bird.velocity = 0;
-    } else {
+      rescueFromDeath({ type: "boundary" });
+    } else if (!tryActivateGodModeShield({ type: "boundary" })) {
       setGameOver();
     }
   }
 }
+
+
 
 function drawColumnLabel(text, x, y, width, height) {
   if (height < 36) {
@@ -1768,7 +2158,12 @@ function draw() {
     const tableRows = 3;
     const tableHeight = headerHeight + rowHeight * tableRows;
     const tableX = (gameWidth - tableWidth) / 2;
-    const tableY = gameHeight / 2 + 92;
+    const tableTitleY = gameHeight / 2 + 92;
+    const tableY = tableTitleY + Math.round(clamp(24 * uiScale, 20, 32));
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "800 " + Math.round(clamp(16 * uiScale, 13, 20)) + "px Arial";
+    ctx.fillText("All-Time Top 3", gameWidth / 2, tableTitleY);
 
     ctx.fillStyle = "rgba(15,23,42,0.72)";
     ctx.fillRect(tableX, tableY, tableWidth, tableHeight);
