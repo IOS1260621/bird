@@ -166,15 +166,50 @@ const PLAYER_NAME_SET_KEY = "inventorpath_player_name_set";
 const SCORE_HISTORY_KEY = "inventorpath_score_history";
 const SPRITE_CHOICES_KEY = "inventorpath_sprite_choices";
 
+let gameWidth = 0;
+let gameHeight = 0;
+let uiScale = 1;
+
+let pipes = [];
+let score = 0;
+let gameStarted = false;
+let gameOver = false;
+let scoreSavedForRound = false;
+let lastSavedEntry = null;
+let totalPipesCreated = 0;
+let mysteryBox = null;
+let mysteryPlans = [];
+let nextRecurringMysteryThreshold = 70;
+let activeEffect = null;
+let speedMultiplier = 1;
+let sizeMultiplier = 1;
+let gapMultiplier = 1;
+let godModeCharges = 0;
+let invincibleUntil = 0;
+
+function sanitizeName(name) {
+  const trimmed = name.trim().replace(/\s+/g, " ");
+  return trimmed.slice(0, 20);
+}
+
+function loadSpriteChoices() {
+  try {
+    const raw = localStorage.getItem(SPRITE_CHOICES_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
 const storedPlayerName = sanitizeName(localStorage.getItem(PLAYER_NAME_KEY) || "");
 let playerName = storedPlayerName || "Player";
 let hasSetPlayerName = localStorage.getItem(PLAYER_NAME_SET_KEY) === "1" || Boolean(storedPlayerName);
 let scoreHistory = [];
 let spriteChoicesByUser = loadSpriteChoices();
-
-let gameWidth = 0;
-let gameHeight = 0;
-let uiScale = 1;
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -209,6 +244,10 @@ let bird = {
 
 bird.x = Math.max(70, Math.min(100, gameWidth * 0.2));
 
+function recalculateBirdSize() {
+  bird.size = Math.max(0, Math.round(bird.baseSize * sizeMultiplier));
+}
+
 function applyPhysicsTuning() {
   bird.baseSize = Math.round(clamp(gameWidth * 0.032, 20, 26));
   recalculateBirdSize();
@@ -217,28 +256,6 @@ function applyPhysicsTuning() {
 }
 
 applyPhysicsTuning();
-
-let pipes = [];
-let score = 0;
-let gameStarted = false;
-let gameOver = false;
-let scoreSavedForRound = false;
-let lastSavedEntry = null;
-let totalPipesCreated = 0;
-let mysteryBox = null;
-let mysteryPlans = [];
-let nextRecurringMysteryThreshold = 70;
-let activeEffect = null;
-let speedMultiplier = 1;
-let sizeMultiplier = 1;
-let gapMultiplier = 1;
-let godModeCharges = 0;
-let invincibleUntil = 0;
-
-function sanitizeName(name) {
-  const trimmed = name.trim().replace(/\s+/g, " ");
-  return trimmed.slice(0, 20);
-}
 
 function formatPlayedAt(isoTime) {
   const date = new Date(isoTime);
@@ -287,19 +304,6 @@ function getTopScores(limit) {
     .slice(0, limit);
 }
 
-function loadSpriteChoices() {
-  try {
-    const raw = localStorage.getItem(SPRITE_CHOICES_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-    return parsed;
-  } catch {
-    return {};
-  }
-}
-
 function saveSpriteChoices() {
   localStorage.setItem(SPRITE_CHOICES_KEY, JSON.stringify(spriteChoicesByUser));
 }
@@ -334,10 +338,6 @@ function applyCurrentPlayerSprite() {
 
 function getPipeSpeedMultiplier() {
   return speedMultiplier;
-}
-
-function recalculateBirdSize() {
-  bird.size = Math.max(0, Math.round(bird.baseSize * sizeMultiplier));
 }
 
 function clearTimedEffect() {
