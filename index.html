@@ -120,13 +120,53 @@
     .start-button:active {
       transform: translateY(1px);
     }
+    .secondary-button {
+      width: 100%;
+      border: 1px solid #94a3b8;
+      border-radius: 10px;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 13px;
+      font-weight: 700;
+      padding: 9px 12px;
+      cursor: pointer;
+      margin-top: 6px;
+    }
+    .secondary-button:active {
+      transform: translateY(1px);
+    }
+    .auth-status {
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 8px;
+      line-height: 1.25;
+    }
+    .auth-note {
+      color: #475569;
+      font-size: 11px;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
   </style>
 </head>
 <body>
 <div class="hud-panel" id="hudPanel">
+  <div class="auth-status" id="authStatus">Sign in or create a player account.</div>
+  <div class="auth-note">This static web version saves accounts and top 3 scores in this browser. Use Download Score File to export a JSON file.</div>
   <div class="hud-row">
-    <label for="playerNameInput">Player</label>
-    <input id="playerNameInput" type="text" maxlength="20" placeholder="Enter your name">
+    <label for="playerNameInput">User</label>
+    <input id="playerNameInput" type="text" maxlength="20" placeholder="User name">
+  </div>
+  <div class="hud-row">
+    <label for="passwordInput">Pass</label>
+    <input id="passwordInput" type="password" maxlength="30" placeholder="Password">
+  </div>
+  <div class="hud-actions">
+    <button class="secondary-button" id="createAccountButton" type="button">Create New User</button>
+    <button class="secondary-button" id="loginButton" type="button">Log In</button>
+    <button class="secondary-button" id="logoutButton" type="button" style="display:none;">Log Out</button>
+    <button class="secondary-button" id="downloadScoreFileButton" type="button" style="display:none;">Download My Score File</button>
   </div>
   <div class="hud-row" id="spritePickerRow" style="display:none;">
     <label for="spritePicker">Bruce</label>
@@ -152,19 +192,45 @@ const spriteHint = document.getElementById("spriteHint");
 const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
-const dogImage = new Image();
+const passwordInput = document.getElementById("passwordInput");
+const authStatus = document.getElementById("authStatus");
+const createAccountButton = document.getElementById("createAccountButton");
+const loginButton = document.getElementById("loginButton");
+const logoutButton = document.getElementById("logoutButton");
+const downloadScoreFileButton = document.getElementById("downloadScoreFileButton");
 const ctGantryImage = new Image();
 
 const DEFAULT_DOG_SPRITE = "bruce.png";
 const AVAILABLE_DOG_SPRITES = ["bruce.png", "dog.svg", "gooboybruce.PNG", "smileB.png"];
 
-dogImage.src = DEFAULT_DOG_SPRITE;
+// Version 2: preload all player sprites once and switch by name.
+// This prevents iPhone/GitHub Pages timing/caching issues where the selector
+// changed but the displayed Bruce image did not update reliably.
+const spriteImages = {};
+let currentSprite = DEFAULT_DOG_SPRITE;
+
+AVAILABLE_DOG_SPRITES.forEach(spriteName => {
+  const img = new Image();
+  img.onload = () => {
+    // Redraw immediately after a sprite finishes loading.
+    draw();
+  };
+  img.onerror = () => {
+    console.warn("Missing or failed sprite image:", spriteName);
+  };
+  img.src = spriteName;
+  spriteImages[spriteName] = img;
+});
+
 ctGantryImage.src = "ct-gantry.svg";
 
 const PLAYER_NAME_KEY = "inventorpath_player_name";
 const PLAYER_NAME_SET_KEY = "inventorpath_player_name_set";
 const SCORE_HISTORY_KEY = "inventorpath_score_history";
 const SPRITE_CHOICES_KEY = "inventorpath_sprite_choices";
+const USER_ACCOUNTS_KEY = "inventorpath_user_accounts";
+const ACTIVE_USER_KEY = "inventorpath_active_user";
+const SCORE_FILE_PREFIX = "inventorpath_score_file_";
 
 let gameWidth = 0;
 let gameHeight = 0;
@@ -192,6 +258,188 @@ function sanitizeName(name) {
   return trimmed.slice(0, 20);
 }
 
+function sanitizeUsername(name) {
+  return sanitizeName(name).replace(/[^a-zA-Z0-9 _.-]/g, "");
+}
+
+function getUserKey(name) {
+  return sanitizeUsername(name).toLowerCase();
+}
+
+function loadUserAccounts() {
+  try {
+    const raw = localStorage.getItem(USER_ACCOUNTS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function saveUserAccounts() {
+  localStorage.setItem(USER_ACCOUNTS_KEY, JSON.stringify(userAccounts));
+}
+
+function getScoreFileKey(name) {
+  return SCORE_FILE_PREFIX + getUserKey(name);
+}
+
+function getTopThreeScoresForUser(name) {
+  return getScoresForPlayer(name).slice(0, 3);
+}
+
+function saveCurrentUserScoreFile() {
+  if (!activeUserName) {
+    return;
+  }
+
+  const scoreFile = {
+    userName: playerName,
+    updatedAt: new Date().toISOString(),
+    top3Scores: getTopThreeScoresForUser(playerName).map(entry => ({
+      score: entry.score,
+      playedAt: entry.playedAt
+    }))
+  };
+
+  localStorage.setItem(getScoreFileKey(playerName), JSON.stringify(scoreFile, null, 2));
+}
+
+function loadCurrentUserScoreFile() {
+  if (!activeUserName) {
+    return null;
+  }
+
+  try {
+    const raw = localStorage.getItem(getScoreFileKey(playerName));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function downloadCurrentUserScoreFile() {
+  if (!activeUserName) {
+    alert("Log in first.");
+    return;
+  }
+
+  saveCurrentUserScoreFile();
+  const raw = localStorage.getItem(getScoreFileKey(playerName)) || "{}";
+  const blob = new Blob([raw], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = playerName.replace(/[^a-zA-Z0-9_-]/g, "_") + "_top3_scores.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function renderAuthStatus() {
+  if (activeUserName) {
+    authStatus.textContent = "Logged in as " + playerName;
+    loginButton.style.display = "none";
+    createAccountButton.style.display = "none";
+    logoutButton.style.display = "block";
+    downloadScoreFileButton.style.display = "block";
+    startGameButton.disabled = false;
+    startGameButton.style.opacity = "1";
+  } else {
+    authStatus.textContent = "Sign in or create a player account.";
+    loginButton.style.display = "block";
+    createAccountButton.style.display = "block";
+    logoutButton.style.display = "none";
+    downloadScoreFileButton.style.display = "none";
+    startGameButton.disabled = true;
+    startGameButton.style.opacity = "0.55";
+  }
+}
+
+function createAccount() {
+  const name = sanitizeUsername(playerNameInput.value);
+  const password = passwordInput.value;
+  const userKey = getUserKey(name);
+
+  if (!name || !password) {
+    alert("Enter a user name and password.");
+    return;
+  }
+
+  if (userAccounts[userKey]) {
+    alert("That user already exists. Use Log In instead.");
+    return;
+  }
+
+  // Static HTML version: password is stored locally in this browser only.
+  // This is not bank-level security, but it creates separate local player accounts.
+  userAccounts[userKey] = {
+    userName: name,
+    password: password,
+    createdAt: new Date().toISOString()
+  };
+  saveUserAccounts();
+
+  activeUserName = name;
+  playerName = name;
+  hasSetPlayerName = true;
+  localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
+  localStorage.setItem(PLAYER_NAME_KEY, playerName);
+  localStorage.setItem(PLAYER_NAME_SET_KEY, "1");
+  playerNameInput.value = playerName;
+  passwordInput.value = "";
+  saveCurrentUserScoreFile();
+  renderScoreHistory();
+  renderAuthStatus();
+  applyCurrentPlayerSprite();
+  updateHudVisibility();
+}
+
+function loginAccount() {
+  const name = sanitizeUsername(playerNameInput.value);
+  const password = passwordInput.value;
+  const userKey = getUserKey(name);
+  const account = userAccounts[userKey];
+
+  if (!account || account.password !== password) {
+    alert("Incorrect user name or password.");
+    return;
+  }
+
+  activeUserName = account.userName;
+  playerName = account.userName;
+  hasSetPlayerName = true;
+  localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
+  localStorage.setItem(PLAYER_NAME_KEY, playerName);
+  localStorage.setItem(PLAYER_NAME_SET_KEY, "1");
+  playerNameInput.value = playerName;
+  passwordInput.value = "";
+  renderScoreHistory();
+  renderAuthStatus();
+  applyCurrentPlayerSprite();
+  updateHudVisibility();
+}
+
+function logoutAccount() {
+  activeUserName = "";
+  playerName = "Player";
+  hasSetPlayerName = false;
+  localStorage.removeItem(ACTIVE_USER_KEY);
+  localStorage.removeItem(PLAYER_NAME_SET_KEY);
+  playerNameInput.value = "";
+  passwordInput.value = "";
+  gameStarted = false;
+  gameOver = false;
+  renderScoreHistory();
+  renderAuthStatus();
+  updateStartButtonLabel();
+  updateHudVisibility();
+}
+
 function loadSpriteChoices() {
   try {
     const raw = localStorage.getItem(SPRITE_CHOICES_KEY);
@@ -205,9 +453,15 @@ function loadSpriteChoices() {
   }
 }
 
-const storedPlayerName = sanitizeName(localStorage.getItem(PLAYER_NAME_KEY) || "");
-let playerName = storedPlayerName || "Player";
-let hasSetPlayerName = localStorage.getItem(PLAYER_NAME_SET_KEY) === "1" || Boolean(storedPlayerName);
+let userAccounts = loadUserAccounts();
+let activeUserName = sanitizeUsername(localStorage.getItem(ACTIVE_USER_KEY) || "");
+if (activeUserName && !userAccounts[getUserKey(activeUserName)]) {
+  activeUserName = "";
+  localStorage.removeItem(ACTIVE_USER_KEY);
+}
+
+let playerName = activeUserName || "Player";
+let hasSetPlayerName = Boolean(activeUserName);
 let scoreHistory = [];
 let spriteChoicesByUser = loadSpriteChoices();
 
@@ -324,12 +578,12 @@ function getCurrentPlayerSpriteChoice() {
 function applyCurrentPlayerSprite() {
   if (isCurrentPlayerTopScorer()) {
     const chosen = getCurrentPlayerSpriteChoice();
-    dogImage.src = chosen;
+    currentSprite = chosen;
     spritePicker.value = chosen;
     spritePickerRow.style.display = "flex";
     spriteHint.style.display = "block";
   } else {
-    dogImage.src = DEFAULT_DOG_SPRITE;
+    currentSprite = DEFAULT_DOG_SPRITE;
     spritePicker.value = DEFAULT_DOG_SPRITE;
     spritePickerRow.style.display = "none";
     spriteHint.style.display = "none";
@@ -513,21 +767,30 @@ function loadScoreHistory() {
 
     return parsed
       .filter(entry => entry && typeof entry.name === "string" && Number.isFinite(entry.score) && typeof entry.playedAt === "string")
-      .slice(0, 25);
+      .slice(0, 100);
   } catch {
     return [];
   }
 }
 
 function saveScoreHistory() {
-  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, 25)));
+  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, 100)));
+  saveCurrentUserScoreFile();
 }
 
 function renderScoreHistory() {
   scoreList.innerHTML = "";
-  scoreListTitle.textContent = "Top scores for " + playerName;
 
-  const playerScores = getScoresForPlayer(playerName);
+  if (!activeUserName) {
+    scoreListTitle.textContent = "Player login required";
+    const emptyItem = document.createElement("li");
+    emptyItem.textContent = "Create a user or log in to save scores.";
+    scoreList.appendChild(emptyItem);
+    return;
+  }
+
+  scoreListTitle.textContent = "Top 3 scores for " + playerName;
+  const playerScores = getTopThreeScoresForUser(playerName);
 
   if (playerScores.length === 0) {
     const emptyItem = document.createElement("li");
@@ -536,9 +799,9 @@ function renderScoreHistory() {
     return;
   }
 
-  playerScores.slice(0, 10).forEach(entry => {
+  playerScores.forEach((entry, index) => {
     const item = document.createElement("li");
-    item.textContent = entry.score + " points - " + formatPlayedAt(entry.playedAt);
+    item.textContent = "#" + (index + 1) + " - " + entry.score + " points - " + formatPlayedAt(entry.playedAt);
     scoreList.appendChild(item);
   });
 
@@ -550,7 +813,7 @@ function updateStartButtonLabel() {
 }
 
 function updateHudVisibility() {
-  hudPanel.style.display = !gameStarted || gameOver ? "block" : "none";
+  hudPanel.style.display = !gameStarted || gameOver || !activeUserName ? "block" : "none";
 }
 
 function resetRoundState() {
@@ -572,6 +835,10 @@ function resetRoundState() {
 
 function startGame() {
   applyPlayerNameFromInput();
+  if (!activeUserName) {
+    alert("Create a user or log in before starting the game.");
+    return;
+  }
   resetRoundState();
   gameStarted = true;
   updateStartButtonLabel();
@@ -579,20 +846,20 @@ function startGame() {
 }
 
 function applyPlayerNameFromInput() {
-  const nextName = sanitizeName(playerNameInput.value);
-  if (nextName) {
-    playerName = nextName;
-    hasSetPlayerName = true;
-    localStorage.setItem(PLAYER_NAME_SET_KEY, "1");
-  } else {
-    playerName = "Player";
-    hasSetPlayerName = false;
-    localStorage.removeItem(PLAYER_NAME_SET_KEY);
+  if (!activeUserName) {
+    renderScoreHistory();
+    renderAuthStatus();
+    updateHudVisibility();
+    return;
   }
 
+  playerName = activeUserName;
+  hasSetPlayerName = true;
   playerNameInput.value = playerName;
   localStorage.setItem(PLAYER_NAME_KEY, playerName);
+  localStorage.setItem(PLAYER_NAME_SET_KEY, "1");
   renderScoreHistory();
+  renderAuthStatus();
   applyCurrentPlayerSprite();
   updateHudVisibility();
 }
@@ -609,7 +876,7 @@ function persistCurrentScore() {
     playedAt: new Date().toISOString()
   };
   scoreHistory.unshift(lastSavedEntry);
-  scoreHistory = scoreHistory.slice(0, 25);
+  scoreHistory = scoreHistory.slice(0, 100);
   saveScoreHistory();
   renderScoreHistory();
   applyCurrentPlayerSprite();
@@ -625,26 +892,36 @@ function setGameOver() {
   updateHudVisibility();
 }
 
-playerNameInput.value = playerName;
-playerNameInput.addEventListener("change", applyPlayerNameFromInput);
-playerNameInput.addEventListener("blur", applyPlayerNameFromInput);
+playerNameInput.value = activeUserName ? playerName : "";
 playerNameInput.addEventListener("keydown", event => {
   if (event.key === "Enter") {
-    applyPlayerNameFromInput();
-    playerNameInput.blur();
+    passwordInput.focus();
   }
 });
+passwordInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    if (activeUserName) {
+      startGame();
+    } else {
+      loginAccount();
+    }
+  }
+});
+createAccountButton.addEventListener("click", createAccount);
+loginButton.addEventListener("click", loginAccount);
+logoutButton.addEventListener("click", logoutAccount);
+downloadScoreFileButton.addEventListener("click", downloadCurrentUserScoreFile);
 spritePicker.addEventListener("change", () => {
   if (!isCurrentPlayerTopScorer()) {
     spritePicker.value = DEFAULT_DOG_SPRITE;
-    dogImage.src = DEFAULT_DOG_SPRITE;
+    currentSprite = DEFAULT_DOG_SPRITE;
     return;
   }
 
   const chosen = AVAILABLE_DOG_SPRITES.includes(spritePicker.value) ? spritePicker.value : DEFAULT_DOG_SPRITE;
   spriteChoicesByUser[normalizedName(playerName)] = chosen;
   saveSpriteChoices();
-  dogImage.src = chosen;
+  currentSprite = chosen;
 });
 startGameButton.addEventListener("click", startGame);
 
@@ -656,7 +933,9 @@ AVAILABLE_DOG_SPRITES.forEach(spriteName => {
 });
 
 scoreHistory = loadScoreHistory();
+saveCurrentUserScoreFile();
 renderScoreHistory();
+renderAuthStatus();
 applyCurrentPlayerSprite();
 updateStartButtonLabel();
 updateHudVisibility();
@@ -923,12 +1202,14 @@ function draw() {
   const spriteX = bird.x - bird.size;
   const spriteY = bird.y - bird.size;
 
-  if (dogImage.complete && dogImage.naturalWidth > 0) {
+  const activeSpriteImage = spriteImages[currentSprite] || spriteImages[DEFAULT_DOG_SPRITE];
+
+  if (activeSpriteImage && activeSpriteImage.complete && activeSpriteImage.naturalWidth > 0) {
     ctx.save();
     ctx.beginPath();
     ctx.arc(bird.x, bird.y, bird.size, 0, Math.PI * 2);
     ctx.clip();
-    ctx.drawImage(dogImage, spriteX, spriteY, spriteSize, spriteSize);
+    ctx.drawImage(activeSpriteImage, spriteX, spriteY, spriteSize, spriteSize);
     ctx.restore();
   } else {
     ctx.fillStyle = "#facc15";
