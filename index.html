@@ -273,6 +273,11 @@ const SPRITE_CHOICES_KEY = "inventorpath_sprite_choices";
 const USER_ACCOUNTS_KEY = "inventorpath_user_accounts";
 const ACTIVE_USER_KEY = "inventorpath_active_user";
 const SCORE_FILE_PREFIX = "inventorpath_score_file_";
+const TOP3_FOREVER_KEY = "inventorpath_top3_forever";
+const DAILY_STATS_KEY = "inventorpath_daily_stats";
+const LAST_RESET_DATE_KEY = "inventorpath_last_reset_date";
+const INACTIVITY_DAYS = 14;
+const MS_PER_DAY = 86400000;
 
 let gameWidth = 0;
 let gameHeight = 0;
@@ -435,7 +440,8 @@ function createAccount() {
   userAccounts[userKey] = {
     userName: name,
     password: password,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    lastActivity: new Date().toISOString()
   };
   saveUserAccounts();
 
@@ -465,6 +471,8 @@ function loginAccount() {
     return;
   }
 
+  account.lastActivity = new Date().toISOString();
+  saveUserAccounts();
   activeUserName = account.userName;
   playerName = account.userName;
   hasSetPlayerName = true;
@@ -917,6 +925,36 @@ function getBottomColumnLabel() {
   return "DOO";
 }
 
+function loadTop3Forever() {
+  try {
+    const raw = localStorage.getItem(TOP3_FOREVER_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(e => e && typeof e.name === "string" && Number.isFinite(e.score) && typeof e.playedAt === "string");
+  } catch {
+    return [];
+  }
+}
+
+function saveTop3Forever(entries) {
+  localStorage.setItem(TOP3_FOREVER_KEY, JSON.stringify(entries));
+}
+
+function updateTop3Forever() {
+  const forever = loadTop3Forever();
+  const combined = scoreHistory.concat(forever);
+  const seen = new Set();
+  const deduped = [];
+  combined.slice().sort(compareScoreEntries).forEach(entry => {
+    const key = normalizedName(entry.name) + "|" + entry.playedAt;
+    if (!seen.has(key)) {
+      seen.add(key);
+      deduped.push(entry);
+    }
+  });
+  saveTop3Forever(deduped.slice(0, 3));
+}
+
 function loadScoreHistory() {
   try {
     const raw = localStorage.getItem(SCORE_HISTORY_KEY);
@@ -925,9 +963,22 @@ function loadScoreHistory() {
       return [];
     }
 
-    return parsed
+    const entries = parsed
       .filter(entry => entry && typeof entry.name === "string" && Number.isFinite(entry.score) && typeof entry.playedAt === "string")
       .slice(0, 100);
+
+    // Always re-merge top-3-forever so those records survive account expiry.
+    const forever = loadTop3Forever();
+    const seen = new Set();
+    const merged = [];
+    entries.concat(forever).forEach(entry => {
+      const key = normalizedName(entry.name) + "|" + entry.playedAt;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(entry);
+      }
+    });
+    return merged.slice(0, 100);
   } catch {
     return [];
   }
@@ -935,7 +986,108 @@ function loadScoreHistory() {
 
 function saveScoreHistory() {
   localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, 100)));
+  updateTop3Forever();
   saveCurrentUserScoreFile();
+}
+
+function purgeInactiveAccounts() {
+  const now = Date.now();
+  let changed = false;
+
+  Object.keys(userAccounts).forEach(key => {
+    const account = userAccounts[key];
+    const activityIso = account.lastActivity || account.createdAt;
+    if (!activityIso) return;
+    const activityTime = new Date(activityIso).getTime();
+    if (!Number.isFinite(activityTime)) return;
+    if ((now - activityTime) / MS_PER_DAY > INACTIVITY_DAYS) {
+      const userKey = normalizedName(account.userName);
+      scoreHistory = scoreHistory.filter(entry => normalizedName(entry.name) !== userKey);
+      localStorage.removeItem(getScoreFileKey(account.userName));
+      delete spriteChoicesByUser[userKey];
+      delete userAccounts[key];
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    saveUserAccounts();
+    saveSpriteChoices();
+    // Write purged history, then reload to re-merge top-3-forever records.
+    localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, 100)));
+    scoreHistory = loadScoreHistory();
+  }
+}
+
+// ── Daily date helpers ────────────────────────────────────────────────────────
+
+function getDayString(date) {
+  const d = date || new Date();
+  return d.getFullYear() + "-" +
+    String(d.getMonth() + 1).padStart(2, "0") + "-" +
+    String(d.getDate()).padStart(2, "0");
+}
+
+// ── Daily activity stats (per-user database stored in localStorage) ───────────
+
+function loadDailyStats() {
+  try {
+    const raw = localStorage.getItem(DAILY_STATS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+function saveDailyStats(stats) {
+  // Retain only the most recent 30 days to keep storage lean.
+  const days = Object.keys(stats).sort();
+  if (days.length > 30) {
+    days.slice(0, days.length - 30).forEach(day => delete stats[day]);
+  }
+  localStorage.setItem(DAILY_STATS_KEY, JSON.stringify(stats));
+}
+
+function recordDailyActivity(name, roundScore) {
+  const stats = loadDailyStats();
+  const today = getDayString();
+  const userKey = normalizedName(name);
+  if (!stats[today]) stats[today] = {};
+  if (!stats[today][userKey]) {
+    stats[today][userKey] = { userName: name, gamesPlayed: 0, highScore: 0, totalScore: 0 };
+  }
+  const entry = stats[today][userKey];
+  entry.gamesPlayed += 1;
+  entry.totalScore += roundScore;
+  if (roundScore > entry.highScore) entry.highScore = roundScore;
+  entry.userName = name;
+  saveDailyStats(stats);
+}
+
+function getTodayStatsForPlayer(name) {
+  const stats = loadDailyStats();
+  const today = getDayString();
+  return (stats[today] && stats[today][normalizedName(name)]) || null;
+}
+
+// ── Midnight score reset ──────────────────────────────────────────────────────
+
+function maybeResetScoresNightly() {
+  const today = getDayString();
+  const lastReset = localStorage.getItem(LAST_RESET_DATE_KEY) || "";
+  if (lastReset !== today) {
+    // Clear per-day score history; TOP3_FOREVER_KEY is untouched.
+    localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
+    scoreHistory = loadScoreHistory(); // re-merges top-3-forever
+    localStorage.setItem(LAST_RESET_DATE_KEY, today);
+    renderScoreHistory();
+  }
+  // Schedule next check 5 s after the next calendar midnight.
+  const now = new Date();
+  const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+  setTimeout(maybeResetScoresNightly, nextMidnight.getTime() - now.getTime());
 }
 
 function renderScoreHistory() {
@@ -956,14 +1108,31 @@ function renderScoreHistory() {
     const emptyItem = document.createElement("li");
     emptyItem.textContent = "No games yet for this player";
     scoreList.appendChild(emptyItem);
-    return;
+  } else {
+    playerScores.forEach((entry, index) => {
+      const item = document.createElement("li");
+      item.textContent = "#" + (index + 1) + " - " + entry.score + " points - " + formatPlayedAt(entry.playedAt);
+      scoreList.appendChild(item);
+    });
   }
 
-  playerScores.forEach((entry, index) => {
-    const item = document.createElement("li");
-    item.textContent = "#" + (index + 1) + " - " + entry.score + " points - " + formatPlayedAt(entry.playedAt);
-    scoreList.appendChild(item);
-  });
+  // Today's daily activity stats
+  const todayStats = getTodayStatsForPlayer(playerName);
+  if (todayStats && todayStats.gamesPlayed > 0) {
+    const sep = document.createElement("li");
+    sep.style.cssText = "list-style:none;margin-top:6px;padding-top:6px;border-top:1px solid #e2e8f0;color:#334155;font-weight:700;font-size:11px;";
+    sep.textContent = "Today \u2014 " + getDayString();
+    scoreList.appendChild(sep);
+
+    const mean = (todayStats.totalScore / todayStats.gamesPlayed).toFixed(1);
+    const statsItem = document.createElement("li");
+    statsItem.style.cssText = "list-style:none;font-size:11px;color:#475569;line-height:1.6;";
+    statsItem.innerHTML =
+      "Games: <b>" + todayStats.gamesPlayed + "</b>" +
+      " &nbsp;|&nbsp; Best: <b>" + todayStats.highScore + "</b>" +
+      " &nbsp;|&nbsp; Avg: <b>" + mean + "</b>";
+    scoreList.appendChild(statsItem);
+  }
 
   applyCurrentPlayerSprite();
 }
@@ -1064,6 +1233,15 @@ function persistCurrentScore() {
   scoreHistory.unshift(lastSavedEntry);
   scoreHistory = scoreHistory.slice(0, 100);
   saveScoreHistory();
+  recordDailyActivity(playerName, score);
+
+  // Refresh last-activity so this user's data won't expire for another 14 days.
+  const actKey = getUserKey(playerName);
+  if (userAccounts[actKey]) {
+    userAccounts[actKey].lastActivity = new Date().toISOString();
+    saveUserAccounts();
+  }
+
   renderScoreHistory();
   applyCurrentPlayerSprite();
 }
@@ -1119,6 +1297,18 @@ window.addEventListener("pointerup", endHudPanelDrag);
 window.addEventListener("pointercancel", endHudPanelDrag);
 
 scoreHistory = loadScoreHistory();
+purgeInactiveAccounts();
+
+// If the active user was just purged, log them out automatically.
+if (activeUserName && !userAccounts[getUserKey(activeUserName)]) {
+  activeUserName = "";
+  playerName = "Player";
+  hasSetPlayerName = false;
+  localStorage.removeItem(ACTIVE_USER_KEY);
+  localStorage.removeItem(PLAYER_NAME_SET_KEY);
+}
+
+maybeResetScoresNightly();
 saveCurrentUserScoreFile();
 renderScoreHistory();
 renderAuthStatus();
@@ -1164,13 +1354,13 @@ window.addEventListener("resize", () => {
       top: Math.max(40, Math.min(gameHeight - 210, pipe.top)),
       bottom: Math.max(160, Math.min(gameHeight - 40, pipe.bottom))
     }))
-    .filter(pipe => pipe.bottom - pipe.top >= 120);
+    .filter(pipe => pipe.bottom - pipe.top >= 144);
 });
 
 function createPipe() {
   const difficulty = Math.min(score, 30);
-  const baseGap = Math.max(132, Math.min(190, Math.floor(gameHeight * 0.24)));
-  const gap = Math.max(118, baseGap - difficulty) * 1.1;
+  const baseGap = Math.max(158, Math.min(228, Math.floor(gameHeight * 0.288)));
+  const gap = Math.max(142, baseGap - difficulty) * 1.32;
   const margin = Math.max(50, Math.floor(gameHeight * 0.1));
   const maxTop = Math.max(margin + 1, gameHeight - gap - margin);
   const topHeight = Math.random() * (maxTop - margin) + margin;
