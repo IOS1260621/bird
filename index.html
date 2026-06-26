@@ -841,8 +841,10 @@ function queueMysteryPlan(targetPipeId) {
 
 function maybeQueueMysteryPlans() {
   if (!firstMysteryQueued && score >= 5) {
-    // Score 5 milestone: place between columns 18 and 19.
-    queueMysteryPlan(19);
+    // Score 5 milestone: place between columns 8 and 9.
+    // The old V6/V9 placement used target pipe 19, which made the first box
+    // still appear around the old 15-point timing even after the score check moved to 5.
+    queueMysteryPlan(9);
     firstMysteryQueued = true;
   }
 
