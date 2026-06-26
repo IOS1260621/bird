@@ -840,8 +840,8 @@ function queueMysteryPlan(targetPipeId) {
 }
 
 function maybeQueueMysteryPlans() {
-  if (!firstMysteryQueued && score >= 15) {
-    // Score 15 milestone: place between columns 18 and 19.
+  if (!firstMysteryQueued && score >= 5) {
+    // Score 5 milestone: place between columns 18 and 19.
     queueMysteryPlan(19);
     firstMysteryQueued = true;
   }
