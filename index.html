@@ -152,6 +152,32 @@
       line-height: 1.25;
       margin-bottom: 8px;
     }
+    .game-over-actions {
+      position: fixed;
+      z-index: 15;
+      display: none;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .game-over-actions button {
+      flex: 1;
+      border: 0;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 10px 12px;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    }
+    .game-over-actions .play-again-button {
+      background: #0284c7;
+      color: #ffffff;
+    }
+    .game-over-actions .logout-gameover-button {
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid #94a3b8;
+    }
 
   </style>
 </head>
@@ -184,12 +210,19 @@
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
   </div>
 </div>
+<div class="game-over-actions" id="gameOverActions">
+  <button class="logout-gameover-button" id="gameOverLogoutButton" type="button">Log Out</button>
+  <button class="play-again-button" id="gameOverPlayAgainButton" type="button">Play Again</button>
+</div>
 <canvas id="game"></canvas>
 
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const hudPanel = document.getElementById("hudPanel");
+const gameOverActions = document.getElementById("gameOverActions");
+const gameOverLogoutButton = document.getElementById("gameOverLogoutButton");
+const gameOverPlayAgainButton = document.getElementById("gameOverPlayAgainButton");
 const playerNameInput = document.getElementById("playerNameInput");
 const spritePickerRow = document.getElementById("spritePickerRow");
 const spritePicker = document.getElementById("spritePicker");
@@ -905,7 +938,24 @@ function updateStartButtonLabel() {
 }
 
 function updateHudVisibility() {
-  hudPanel.style.display = !gameStarted || gameOver || !activeUserName ? "block" : "none";
+  hudPanel.style.display = !gameStarted || !activeUserName ? "block" : "none";
+  if (!gameOver) {
+    gameOverActions.style.display = "none";
+  }
+}
+
+function updateGameOverActionsLayout(tableX, tableY, tableWidth, tableHeight) {
+  const actionsWidth = Math.min(tableWidth, 420);
+  const left = (gameWidth - actionsWidth) / 2;
+  const top = Math.min(
+    gameHeight - 64,
+    tableY + tableHeight + Math.round(clamp(20 * uiScale, 16, 28))
+  );
+
+  gameOverActions.style.display = "flex";
+  gameOverActions.style.width = Math.round(actionsWidth) + "px";
+  gameOverActions.style.left = Math.round(left) + "px";
+  gameOverActions.style.top = Math.round(top) + "px";
 }
 
 function resetRoundState() {
@@ -1004,6 +1054,8 @@ createAccountButton.addEventListener("click", createAccount);
 loginButton.addEventListener("click", loginAccount);
 logoutButton.addEventListener("click", logoutAccount);
 downloadScoreFileButton.addEventListener("click", downloadCurrentUserScoreFile);
+gameOverLogoutButton.addEventListener("click", logoutAccount);
+gameOverPlayAgainButton.addEventListener("click", startGame);
 spritePicker.addEventListener("change", () => {
   if (!activeUserName) {
     return;
@@ -1401,7 +1453,6 @@ function draw() {
     const bodyFont = Math.round(clamp(24 * uiScale, 19, 30));
     const subTextFont = Math.round(clamp(17 * uiScale, 14, 22));
     const goldFont = Math.round(clamp(30 * uiScale, 24, 38));
-    const hintFont = Math.round(clamp(20 * uiScale, 16, 24));
 
     const currentEntry = lastSavedEntry || {
       name: playerName,
@@ -1491,11 +1542,10 @@ function draw() {
       ctx.fillText(formatPlayedAtShort(entry.playedAt), colPlayed, rowCenterY);
     });
 
-    const hintY = Math.min(gameHeight - 24, tableY + tableHeight + Math.round(clamp(28 * uiScale, 22, 36)));
-    ctx.fillStyle = "#ffffff";
-    ctx.font = hintFont + "px Arial";
-    ctx.fillText("Press Start Game to play again", gameWidth / 2, hintY);
+    updateGameOverActionsLayout(tableX, tableY, tableWidth, tableHeight);
     ctx.textAlign = "left";
+  } else {
+    gameOverActions.style.display = "none";
   }
 }
 
