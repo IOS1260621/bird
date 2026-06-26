@@ -744,7 +744,8 @@ function activateGodMode(durationMs) {
 }
 
 function hasGodModeActive() {
-  return Date.now() < invincibleUntil;
+  const now = Date.now();
+  return now < invincibleUntil || Boolean(activeEffect && activeEffect.type === "god" && now < activeEffect.expiresAt);
 }
 
 function applyMysteryEffect() {
@@ -785,7 +786,7 @@ function applyMysteryEffect() {
     return;
   }
 
-  activateGodMode(3000);
+  activateGodMode(2000);
 }
 
 function maybeExpireEffect() {
@@ -1001,7 +1002,7 @@ function resetRoundState() {
 
 function grantTopScorerStartingGodMode() {
   if (isCurrentPlayerTopScorer()) {
-    activateGodMode(3000);
+    activateGodMode(2000);
   }
 }
 
