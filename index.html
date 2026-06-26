@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V6</title>
+  <title>InventorPath Flappy Game V8</title>
   <style>
     html, body {
       width: 100%;
@@ -141,10 +141,6 @@
       color: #0f172a;
       margin-bottom: 8px;
       line-height: 1.25;
-      cursor: grab;
-    }
-    .auth-status.dragging {
-      cursor: grabbing;
     }
     .auth-note {
       color: #475569;
@@ -266,14 +262,13 @@ AVAILABLE_DOG_SPRITES.forEach(spriteName => {
 
 ctGantryImage.src = "ct-gantry.svg";
 
-const PLAYER_NAME_KEY = "inventorpath_player_name";
-const PLAYER_NAME_SET_KEY = "inventorpath_player_name_set";
 const SCORE_HISTORY_KEY = "inventorpath_score_history";
 const SPRITE_CHOICES_KEY = "inventorpath_sprite_choices";
 const USER_ACCOUNTS_KEY = "inventorpath_user_accounts";
 const ACTIVE_USER_KEY = "inventorpath_active_user";
 const SCORE_FILE_PREFIX = "inventorpath_score_file_";
 const TOP3_FOREVER_KEY = "inventorpath_top3_forever";
+const PER_USER_TOP3_FOREVER_KEY = "inventorpath_per_user_top3_forever";
 const DAILY_STATS_KEY = "inventorpath_daily_stats";
 const LAST_RESET_DATE_KEY = "inventorpath_last_reset_date";
 const INACTIVITY_DAYS = 14;
@@ -298,14 +293,8 @@ let activeEffect = null;
 let speedMultiplier = 1;
 let sizeMultiplier = 1;
 let invincibleUntil = 0;
+let godModeCharges = 0;
 let lastRoundEffectLabel = "None";
-let topScorerGodModeReady = false;
-const HUD_PANEL_MARGIN = 12;
-let hudPanelDragState = {
-  active: false,
-  offsetX: 0,
-  offsetY: 0
-};
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -362,18 +351,6 @@ function saveCurrentUserScoreFile() {
   localStorage.setItem(getScoreFileKey(playerName), JSON.stringify(scoreFile, null, 2));
 }
 
-function loadCurrentUserScoreFile() {
-  if (!activeUserName) {
-    return null;
-  }
-
-  try {
-    const raw = localStorage.getItem(getScoreFileKey(playerName));
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
 
 function downloadCurrentUserScoreFile() {
   if (!activeUserName) {
@@ -447,10 +424,7 @@ function createAccount() {
 
   activeUserName = name;
   playerName = name;
-  hasSetPlayerName = true;
   localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
-  localStorage.setItem(PLAYER_NAME_KEY, playerName);
-  localStorage.setItem(PLAYER_NAME_SET_KEY, "1");
   playerNameInput.value = playerName;
   passwordInput.value = "";
   saveCurrentUserScoreFile();
@@ -475,10 +449,7 @@ function loginAccount() {
   saveUserAccounts();
   activeUserName = account.userName;
   playerName = account.userName;
-  hasSetPlayerName = true;
   localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
-  localStorage.setItem(PLAYER_NAME_KEY, playerName);
-  localStorage.setItem(PLAYER_NAME_SET_KEY, "1");
   playerNameInput.value = playerName;
   passwordInput.value = "";
   renderScoreHistory();
@@ -490,9 +461,7 @@ function loginAccount() {
 function logoutAccount() {
   activeUserName = "";
   playerName = "Player";
-  hasSetPlayerName = false;
   localStorage.removeItem(ACTIVE_USER_KEY);
-  localStorage.removeItem(PLAYER_NAME_SET_KEY);
   playerNameInput.value = "";
   passwordInput.value = "";
   gameStarted = false;
@@ -524,7 +493,6 @@ if (activeUserName && !userAccounts[getUserKey(activeUserName)]) {
 }
 
 let playerName = activeUserName || "Player";
-let hasSetPlayerName = Boolean(activeUserName);
 let scoreHistory = [];
 let spriteChoicesByUser = loadSpriteChoices();
 
@@ -610,11 +578,79 @@ function compareScoreEntries(a, b) {
   return getPlayedAtTime(a) - getPlayedAtTime(b);
 }
 
+function isValidScoreEntry(entry) {
+  return entry &&
+    typeof entry.name === "string" &&
+    Number.isFinite(entry.score) &&
+    typeof entry.playedAt === "string";
+}
+
+function getScoreEntryKey(entry) {
+  return normalizedName(entry.name) + "|" + entry.score + "|" + entry.playedAt;
+}
+
+function mergeScoreEntries(...entryLists) {
+  const seen = new Set();
+  const merged = [];
+
+  entryLists.flat().filter(isValidScoreEntry).forEach(entry => {
+    const key = getScoreEntryKey(entry);
+    if (!seen.has(key)) {
+      seen.add(key);
+      merged.push(entry);
+    }
+  });
+
+  return merged.sort(compareScoreEntries);
+}
+
+function loadPerUserTop3Forever() {
+  try {
+    const raw = localStorage.getItem(PER_USER_TOP3_FOREVER_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const cleaned = {};
+    Object.keys(parsed).forEach(userKey => {
+      const entries = Array.isArray(parsed[userKey]) ? parsed[userKey] : [];
+      const ranked = mergeScoreEntries(entries).slice(0, 3);
+      if (ranked.length > 0) {
+        cleaned[userKey] = ranked;
+      }
+    });
+    return cleaned;
+  } catch {
+    return {};
+  }
+}
+
+function savePerUserTop3Forever(top3ByUser) {
+  localStorage.setItem(PER_USER_TOP3_FOREVER_KEY, JSON.stringify(top3ByUser));
+}
+
+function updatePerUserTop3Forever() {
+  const top3ByUser = loadPerUserTop3Forever();
+
+  scoreHistory.filter(isValidScoreEntry).forEach(entry => {
+    const userKey = normalizedName(entry.name);
+    top3ByUser[userKey] = mergeScoreEntries(top3ByUser[userKey] || [], [entry]).slice(0, 3);
+  });
+
+  savePerUserTop3Forever(top3ByUser);
+}
+
+function getPermanentTopScoresForPlayer(name) {
+  const top3ByUser = loadPerUserTop3Forever();
+  return top3ByUser[normalizedName(name)] || [];
+}
+
 function getScoresForPlayer(name) {
   const nameKey = normalizedName(name);
-  return scoreHistory
-    .filter(entry => normalizedName(entry.name) === nameKey)
-    .sort(compareScoreEntries);
+  const currentScores = scoreHistory.filter(entry => normalizedName(entry.name) === nameKey);
+  const permanentScores = getPermanentTopScoresForPlayer(name);
+  return mergeScoreEntries(currentScores, permanentScores);
 }
 
 function getTopScores(limit) {
@@ -687,53 +723,13 @@ function applyCurrentPlayerSprite() {
   }
 }
 
-function startHudPanelDrag(event) {
-  if (!gameOver) {
-    return;
-  }
-
-  event.preventDefault();
-  const panelRect = hudPanel.getBoundingClientRect();
-  hudPanelDragState.active = true;
-  hudPanelDragState.offsetX = event.clientX - panelRect.left;
-  hudPanelDragState.offsetY = event.clientY - panelRect.top;
-  authStatus.classList.add("dragging");
-}
-
-function moveHudPanelDrag(event) {
-  if (!hudPanelDragState.active) {
-    return;
-  }
-
-  const panelWidth = hudPanel.offsetWidth;
-  const panelHeight = hudPanel.offsetHeight;
-  const maxX = Math.max(HUD_PANEL_MARGIN, gameWidth - panelWidth - HUD_PANEL_MARGIN);
-  const maxY = Math.max(HUD_PANEL_MARGIN, gameHeight - panelHeight - HUD_PANEL_MARGIN);
-
-  const nextLeft = clamp(event.clientX - hudPanelDragState.offsetX, HUD_PANEL_MARGIN, maxX);
-  const nextTop = clamp(event.clientY - hudPanelDragState.offsetY, HUD_PANEL_MARGIN, maxY);
-
-  hudPanel.style.left = Math.round(nextLeft) + "px";
-  hudPanel.style.top = Math.round(nextTop) + "px";
-}
-
-function endHudPanelDrag() {
-  if (!hudPanelDragState.active) {
-    return;
-  }
-
-  hudPanelDragState.active = false;
-  authStatus.classList.remove("dragging");
-}
-
 function getPipeSpeedMultiplier() {
   return speedMultiplier;
 }
 
 function clearTimedEffect() {
-  if (activeEffect && activeEffect.type === "god") {
-    invincibleUntil = 0;
-  }
+  // Clears only the regular mystery effect. God Mode is now stackable
+  // and stored separately as one or more death-shield charges.
   activeEffect = null;
   speedMultiplier = 1;
   sizeMultiplier = 1;
@@ -744,27 +740,31 @@ function rememberRoundEffect(label) {
   lastRoundEffectLabel = label;
 }
 
-function activateGodMode(durationMs) {
-  const now = Date.now();
-  clearTimedEffect();
-  invincibleUntil = now + durationMs;
-  activeEffect = { type: "god", expiresAt: now + durationMs };
-  rememberRoundEffect("God Mode");
+function addGodModeCharge() {
+  godModeCharges += 1;
+  rememberRoundEffect("God Mode Ready");
 }
 
-function hasGodModeActive() {
-  const now = Date.now();
-  return now < invincibleUntil || Boolean(activeEffect && activeEffect.type === "god" && now < activeEffect.expiresAt);
-}
-
-function tryActivateTopScorerGodMode() {
-  if (!topScorerGodModeReady || hasGodModeActive()) {
+function activateGodModeShield(durationMs) {
+  if (godModeCharges <= 0) {
     return false;
   }
 
-  topScorerGodModeReady = false;
-  activateGodMode(2000);
+  godModeCharges -= 1;
+  invincibleUntil = Date.now() + durationMs;
+  rememberRoundEffect("God Mode Activated");
   return true;
+}
+
+function hasGodModeActive() {
+  return Date.now() < invincibleUntil;
+}
+
+function tryActivateGodModeShield() {
+  if (hasGodModeActive()) {
+    return true;
+  }
+  return activateGodModeShield(2000);
 }
 
 function applyMysteryEffect() {
@@ -772,10 +772,10 @@ function applyMysteryEffect() {
   const now = Date.now();
   const bucket = 0.238;
 
-  clearTimedEffect();
-
   if (roll < bucket) {
     // Tiny effect: 33% smaller than normal for 15s.
+    // This can stack with saved or active God Mode.
+    clearTimedEffect();
     sizeMultiplier = 0.67;
     recalculateBirdSize();
     activeEffect = { type: "tiny", expiresAt: now + 15000 };
@@ -784,6 +784,7 @@ function applyMysteryEffect() {
   }
 
   if (roll < bucket * 2) {
+    clearTimedEffect();
     sizeMultiplier = 1.5;
     recalculateBirdSize();
     activeEffect = { type: "large", expiresAt: now + 15000 };
@@ -792,6 +793,7 @@ function applyMysteryEffect() {
   }
 
   if (roll < bucket * 3) {
+    clearTimedEffect();
     speedMultiplier = 0.5;
     activeEffect = { type: "slow", expiresAt: now + 15000 };
     rememberRoundEffect("Slow Pipes");
@@ -799,13 +801,16 @@ function applyMysteryEffect() {
   }
 
   if (roll < bucket * 4) {
+    clearTimedEffect();
     speedMultiplier = 1.3;
     activeEffect = { type: "fast", expiresAt: now + 15000 };
     rememberRoundEffect("Fast Pipes");
     return;
   }
 
-  activateGodMode(2000);
+  // Mystery-box God Mode adds a saved death shield.
+  // It does not turn on immediately and does not erase Tiny/Large/Slow/Fast.
+  addGodModeCharge();
 }
 
 function maybeExpireEffect() {
@@ -836,15 +841,29 @@ function maybeQueueMysteryPlans() {
 }
 
 function getActiveEffectLabel() {
+  const labels = [];
+
+  if (hasGodModeActive()) {
+    const remainingSeconds = Math.max(0, Math.ceil((invincibleUntil - Date.now()) / 1000));
+    labels.push("God Mode Active " + remainingSeconds + "s");
+  }
+
+  if (godModeCharges > 0) {
+    labels.push("God Ready x" + godModeCharges);
+  }
+
   if (activeEffect) {
-    const labels = {
+    const effectLabels = {
       tiny: "Tiny",
       large: "Large",
       slow: "Slow Pipes",
-      fast: "Fast Pipes",
-      god: "God Mode"
+      fast: "Fast Pipes"
     };
-    return labels[activeEffect.type] || "Active";
+    labels.push(effectLabels[activeEffect.type] || "Active");
+  }
+
+  if (labels.length > 0) {
+    return labels.join(" + ");
   }
 
   if (lastRoundEffectLabel && lastRoundEffectLabel !== "None") {
@@ -930,7 +949,7 @@ function loadTop3Forever() {
     const raw = localStorage.getItem(TOP3_FOREVER_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(e => e && typeof e.name === "string" && Number.isFinite(e.score) && typeof e.playedAt === "string");
+    return mergeScoreEntries(parsed).slice(0, 3);
   } catch {
     return [];
   }
@@ -942,17 +961,8 @@ function saveTop3Forever(entries) {
 
 function updateTop3Forever() {
   const forever = loadTop3Forever();
-  const combined = scoreHistory.concat(forever);
-  const seen = new Set();
-  const deduped = [];
-  combined.slice().sort(compareScoreEntries).forEach(entry => {
-    const key = normalizedName(entry.name) + "|" + entry.playedAt;
-    if (!seen.has(key)) {
-      seen.add(key);
-      deduped.push(entry);
-    }
-  });
-  saveTop3Forever(deduped.slice(0, 3));
+  const combined = mergeScoreEntries(scoreHistory, forever);
+  saveTop3Forever(combined.slice(0, 3));
 }
 
 function loadScoreHistory() {
@@ -963,22 +973,10 @@ function loadScoreHistory() {
       return [];
     }
 
-    const entries = parsed
-      .filter(entry => entry && typeof entry.name === "string" && Number.isFinite(entry.score) && typeof entry.playedAt === "string")
-      .slice(0, 100);
+    const entries = parsed.filter(isValidScoreEntry).slice(0, 100);
 
-    // Always re-merge top-3-forever so those records survive account expiry.
-    const forever = loadTop3Forever();
-    const seen = new Set();
-    const merged = [];
-    entries.concat(forever).forEach(entry => {
-      const key = normalizedName(entry.name) + "|" + entry.playedAt;
-      if (!seen.has(key)) {
-        seen.add(key);
-        merged.push(entry);
-      }
-    });
-    return merged.slice(0, 100);
+    // Re-merge global top-3 forever so those records survive daily resets.
+    return mergeScoreEntries(entries, loadTop3Forever()).slice(0, 100);
   } catch {
     return [];
   }
@@ -987,6 +985,7 @@ function loadScoreHistory() {
 function saveScoreHistory() {
   localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify(scoreHistory.slice(0, 100)));
   updateTop3Forever();
+  updatePerUserTop3Forever();
   saveCurrentUserScoreFile();
 }
 
@@ -1078,10 +1077,12 @@ function maybeResetScoresNightly() {
   const today = getDayString();
   const lastReset = localStorage.getItem(LAST_RESET_DATE_KEY) || "";
   if (lastReset !== today) {
-    // Clear per-day score history; TOP3_FOREVER_KEY is untouched.
+    // Clear the daily score list only. Global top 3 and each user's permanent
+    // top 3 stay saved in separate localStorage records.
     localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
-    scoreHistory = loadScoreHistory(); // re-merges top-3-forever
+    scoreHistory = loadScoreHistory();
     localStorage.setItem(LAST_RESET_DATE_KEY, today);
+    saveCurrentUserScoreFile();
     renderScoreHistory();
   }
   // Schedule next check 5 s after the next calendar midnight.
@@ -1177,13 +1178,13 @@ function resetRoundState() {
   firstMysteryQueued = false;
   nextMysteryScoreThreshold = 22;
   invincibleUntil = 0;
-  topScorerGodModeReady = false;
+  godModeCharges = 0;
   clearTimedEffect();
 }
 
 function grantTopScorerStartingGodMode() {
   if (isCurrentPlayerTopScorer()) {
-    topScorerGodModeReady = true;
+    addGodModeCharge();
   }
 }
 
@@ -1209,10 +1210,7 @@ function applyPlayerNameFromInput() {
   }
 
   playerName = activeUserName;
-  hasSetPlayerName = true;
   playerNameInput.value = playerName;
-  localStorage.setItem(PLAYER_NAME_KEY, playerName);
-  localStorage.setItem(PLAYER_NAME_SET_KEY, "1");
   renderScoreHistory();
   renderAuthStatus();
   applyCurrentPlayerSprite();
@@ -1291,21 +1289,19 @@ spritePicker.addEventListener("change", () => {
   spritePicker.value = chosen;
 });
 startGameButton.addEventListener("click", startGame);
-authStatus.addEventListener("pointerdown", startHudPanelDrag);
-window.addEventListener("pointermove", moveHudPanelDrag);
-window.addEventListener("pointerup", endHudPanelDrag);
-window.addEventListener("pointercancel", endHudPanelDrag);
 
 scoreHistory = loadScoreHistory();
 purgeInactiveAccounts();
+// Migrate any existing V6 scores into the new permanent top-3 databases
+// before the daily reset can clear the short-term score list.
+updateTop3Forever();
+updatePerUserTop3Forever();
 
 // If the active user was just purged, log them out automatically.
 if (activeUserName && !userAccounts[getUserKey(activeUserName)]) {
   activeUserName = "";
   playerName = "Player";
-  hasSetPlayerName = false;
   localStorage.removeItem(ACTIVE_USER_KEY);
-  localStorage.removeItem(PLAYER_NAME_SET_KEY);
 }
 
 maybeResetScoresNightly();
@@ -1413,7 +1409,7 @@ function update() {
       bird.x - bird.size < pipe.x + pipe.width &&
       (bird.y - bird.size < pipe.top || bird.y + bird.size > pipe.bottom)
     ) {
-      if (!tryActivateTopScorerGodMode()) {
+      if (!tryActivateGodModeShield()) {
         setGameOver();
       }
     }
@@ -1434,7 +1430,7 @@ function update() {
     if (hasGodModeActive()) {
       bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
       bird.velocity = 0;
-    } else if (tryActivateTopScorerGodMode()) {
+    } else if (tryActivateGodModeShield()) {
       bird.y = clamp(bird.y, bird.size, gameHeight - bird.size);
       bird.velocity = 0;
     } else {
@@ -1791,9 +1787,6 @@ function draw() {
   }
 }
 
-function restart() {
-  startGame();
-}
 
 function loop() {
   update();
