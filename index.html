@@ -202,6 +202,25 @@
     .player-select-title {
       display: none !important;
     }
+    .selected-sprite-preview {
+      margin-bottom: 10px;
+      min-height: 96px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      border-radius: 14px;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 8px;
+    }
+    .selected-sprite-preview img {
+      max-width: 100%;
+      max-height: 82px;
+      object-fit: contain;
+      image-rendering: auto;
+    }
     .player-button-row {
       display: flex;
       gap: 10px;
@@ -368,6 +387,9 @@
 <body>
 <div class="hud-panel" id="hudPanel">
   <div class="player-select-title">Choose Player</div>
+  <div class="selected-sprite-preview" id="selectedSpritePreview" aria-live="polite">
+    <img id="selectedSpritePreviewImage" alt="Selected Bruce sprite preview">
+  </div>
   <div class="player-button-row" id="playerButtonRow">
     <button class="player-choice-button" id="chooseChubdooButton" type="button">Chubdoo</button>
     <button class="player-choice-button" id="chooseChubsonButton" type="button">Chubson</button>
@@ -474,6 +496,8 @@ const downloadScoreFileButton = document.getElementById("downloadScoreFileButton
 const passwordWarning = document.getElementById("passwordWarning");
 const chooseChubsonButton = document.getElementById("chooseChubsonButton");
 const chooseChubdooButton = document.getElementById("chooseChubdooButton");
+const selectedSpritePreview = document.getElementById("selectedSpritePreview");
+const selectedSpritePreviewImage = document.getElementById("selectedSpritePreviewImage");
 const assetWarning = document.getElementById("assetWarning");
 const adminPanel = document.getElementById("adminPanel");
 const clearDailyScoresButton = document.getElementById("clearDailyScoresButton");
@@ -1230,11 +1254,28 @@ function getCurrentPlayerSpriteChoice() {
   return getDefaultSpriteForCurrentUser();
 }
 
+function updateSelectedSpritePreview(spriteName) {
+  if (!selectedSpritePreview || !selectedSpritePreviewImage) {
+    return;
+  }
+
+  if (!activeUserName || !spriteName) {
+    selectedSpritePreview.style.display = "none";
+    selectedSpritePreviewImage.removeAttribute("src");
+    return;
+  }
+
+  selectedSpritePreview.style.display = "flex";
+  selectedSpritePreviewImage.src = spriteName;
+  selectedSpritePreviewImage.alt = "Selected Bruce sprite: " + spriteName;
+}
+
 function applyCurrentPlayerSprite() {
   if (!activeUserName) {
     currentSprite = DEFAULT_DOG_SPRITE;
     spritePickerRow.style.display = "none";
     spriteHint.style.display = "none";
+    updateSelectedSpritePreview("");
     return;
   }
 
@@ -1242,6 +1283,7 @@ function applyCurrentPlayerSprite() {
   const chosen = getCurrentPlayerSpriteChoice();
   currentSprite = chosen;
   spritePicker.value = chosen;
+  updateSelectedSpritePreview(chosen);
   spritePickerRow.style.display = "flex";
   spriteHint.style.display = "block";
 
@@ -2337,6 +2379,7 @@ spritePicker.addEventListener("change", () => {
   saveSpriteChoices();
   currentSprite = chosen;
   spritePicker.value = chosen;
+  updateSelectedSpritePreview(chosen);
 });
 startGameButton.addEventListener("click", startGame);
 
