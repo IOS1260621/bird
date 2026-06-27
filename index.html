@@ -2478,10 +2478,58 @@ applyCurrentPlayerSprite();
 updateStartButtonLabel();
 updateHudVisibility();
 
+
+// ── Sound system ───────────────────────────────────────────────────────────
+let pingAudioContext = null;
+
+function getPingAudioContext() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    return null;
+  }
+
+  if (!pingAudioContext) {
+    pingAudioContext = new AudioContextClass();
+  }
+
+  if (pingAudioContext.state === "suspended") {
+    pingAudioContext.resume().catch(() => {});
+  }
+
+  return pingAudioContext;
+}
+
+function playTapPingSound() {
+  const audioContext = getPingAudioContext();
+  if (!audioContext) {
+    return;
+  }
+
+  const now = audioContext.currentTime;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(880, now);
+  oscillator.frequency.exponentialRampToValueAtTime(1320, now + 0.035);
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.14, now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+
+  oscillator.start(now);
+  oscillator.stop(now + 0.12);
+}
+
 function flap() {
   if (!gameStarted || gameOver || gamePaused) {
     return;
   }
+
+  playTapPingSound();
 
   // Keep taps responsive without stacking overly strong upward boosts.
   bird.velocity = Math.min(bird.velocity, bird.jump);
