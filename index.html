@@ -85,11 +85,22 @@
       border-color: #0284c7;
       box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
     }
-    .image-source-row select {
+    .image-upload-row input[type="file"] {
       flex: 1;
       min-width: 0;
-      font-size: 14px;
+      font-size: 12px;
+      color: #0f172a;
+    }
+    .image-upload-row input[type="file"]::file-selector-button {
+      border: 0;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 12px;
       font-weight: 800;
+      padding: 7px 9px;
+      margin-right: 8px;
+      cursor: pointer;
     }
     .image-upload-name {
       display: none;
@@ -116,8 +127,8 @@
       .hud-row {
         min-height: 42px;
       }
-      .image-source-row select {
-        font-size: 13px;
+      .image-upload-row input[type="file"] {
+        font-size: 11px;
       }
     }
     .sprite-hint {
@@ -352,24 +363,6 @@
       transform: translateY(1px);
     }
 
-    .hundred-photo-select {
-      width: 100%;
-      border: 1px solid #cbd5e1;
-      border-radius: 14px;
-      background: #ffffff;
-      color: #0f172a;
-      font-size: 16px;
-      font-weight: 900;
-      padding: 13px 14px;
-      cursor: pointer;
-      outline: none;
-      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-    }
-    .hundred-photo-select:focus {
-      border-color: #0284c7;
-      box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.20);
-    }
-
   </style>
 </head>
 <body>
@@ -383,15 +376,9 @@
     <label for="spritePicker">Bruce</label>
     <select id="spritePicker"></select>
   </div>
-  <div class="hud-row image-source-row" id="imageUploadRow">
-    <label for="photoSourceSelect">Photo</label>
-    <select id="photoSourceSelect" aria-label="Choose how to pick the reveal photo">
-      <option value="">Choose Image</option>
-      <option value="random">Random Picture</option>
-      <option value="camera">Take A Picture</option>
-    </select>
-    <input id="randomPhotoInput" type="file" accept="image/*" multiple style="display:none;" aria-label="Choose several photos for a random reveal picture">
-    <input id="cameraPhotoInput" type="file" accept="image/*" capture="environment" style="display:none;" aria-label="Take a picture for the reveal background">
+  <div class="hud-row image-upload-row" id="imageUploadRow">
+    <label for="imageUploadInput">Photo</label>
+    <input id="imageUploadInput" type="file" accept="image/*" aria-label="Choose photo from your phone">
   </div>
   <div class="image-upload-name" id="imageUploadName"></div>
   <div class="sprite-hint" id="spriteHint"></div>
@@ -435,20 +422,15 @@
 </div>
 <div class="start-instructions" id="startInstructions">
   <div class="start-instructions-title">Please pick an image to reveal in background.</div>
-  <div class="start-instructions-text">Choose Random Picture or Take A Picture. Goal: bounce Bruce through the gaps. Mystery boxes appear throughout the game and temporarily affect gameplay.</div>
+  <div class="start-instructions-text">Goal: bounce Bruce through the gaps. Mystery boxes appear throughout the game and temporarily affect gameplay.</div>
 </div>
 
 <div class="hundred-photo-modal" id="hundredPhotoModal" aria-live="polite">
   <div class="hundred-photo-card">
     <div class="hundred-photo-title" id="hundredPhotoTitle">100 points!</div>
-    <div class="hundred-photo-text" id="hundredPhotoText">Choose Random Picture or Take A Picture for the next background reveal. Bruce will restart in the center and receive 3 seconds of God Mode.</div>
-    <select class="hundred-photo-select" id="hundredPhotoSourceSelect" aria-label="Choose how to pick the next reveal photo">
-      <option value="">Choose New Picture</option>
-      <option value="random">Random Picture</option>
-      <option value="camera">Take A Picture</option>
-    </select>
-    <input id="hundredRandomImageUploadInput" type="file" accept="image/*" multiple style="display:none;" aria-label="Choose several photos for a random new background picture">
-    <input id="hundredCameraImageUploadInput" type="file" accept="image/*" capture="environment" style="display:none;" aria-label="Take a new picture for the background reveal">
+    <div class="hundred-photo-text" id="hundredPhotoText">Pick a new picture to reveal in the background. Bruce will restart in the center and receive 3 seconds of God Mode.</div>
+    <button class="hundred-photo-button" id="hundredPhotoPickButton" type="button">Pick New Picture</button>
+    <input id="hundredImageUploadInput" type="file" accept="image/*" style="display:none;" aria-label="Choose new background photo">
   </div>
 </div>
 <div class="game-over-actions" id="gameOverActions">
@@ -466,9 +448,8 @@ const startInstructions = document.getElementById("startInstructions");
 const hundredPhotoModal = document.getElementById("hundredPhotoModal");
 const hundredPhotoTitle = document.getElementById("hundredPhotoTitle");
 const hundredPhotoText = document.getElementById("hundredPhotoText");
-const hundredPhotoSourceSelect = document.getElementById("hundredPhotoSourceSelect");
-const hundredRandomImageUploadInput = document.getElementById("hundredRandomImageUploadInput");
-const hundredCameraImageUploadInput = document.getElementById("hundredCameraImageUploadInput");
+const hundredPhotoPickButton = document.getElementById("hundredPhotoPickButton");
+const hundredImageUploadInput = document.getElementById("hundredImageUploadInput");
 const gameOverActions = document.getElementById("gameOverActions");
 const gameOverLogoutButton = document.getElementById("gameOverLogoutButton");
 const gameOverPlayAgainButton = document.getElementById("gameOverPlayAgainButton");
@@ -479,9 +460,7 @@ const spriteHint = document.getElementById("spriteHint");
 const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
-const photoSourceSelect = document.getElementById("photoSourceSelect");
-const randomPhotoInput = document.getElementById("randomPhotoInput");
-const cameraPhotoInput = document.getElementById("cameraPhotoInput");
+const imageUploadInput = document.getElementById("imageUploadInput");
 const imageUploadName = document.getElementById("imageUploadName");
 const passwordInput = document.getElementById("passwordInput");
 const authStatus = document.getElementById("authStatus");
@@ -883,7 +862,7 @@ function renderPlayerButtons() {
 }
 
 function renderAuthStatus() {
-  // V28: mystery boxes every 5 points, gaps 8% smaller, Slow/Fast labels, 3-second image-pick God Mode, and Random Picture/Take A Picture input modes.
+  // V28: mystery boxes every 5 points, gaps 8% smaller, Slow/Fast labels, and 3-second image-pick God Mode.
   authStatus.style.display = "none";
   authNote.style.display = "none";
   authUserRow.style.display = "none";
@@ -1301,7 +1280,6 @@ function clearRevealImageSelection() {
     imageUploadName.style.display = "none";
     imageUploadName.textContent = "";
   }
-  resetPhotoSourceMenus();
   draw();
 }
 
@@ -1344,73 +1322,23 @@ function loadRevealImageFile(file, afterLoad) {
   revealImage.src = revealImageObjectUrl;
 }
 
-function getImageFilesFromInput(inputElement) {
-  if (!inputElement || !inputElement.files) {
-    return [];
-  }
-  return Array.from(inputElement.files).filter(file => file && file.type && file.type.startsWith("image/"));
-}
-
-function chooseRandomImageFile(inputElement) {
-  const files = getImageFilesFromInput(inputElement);
-  if (files.length === 0) {
-    return null;
-  }
-  return files[Math.floor(Math.random() * files.length)];
-}
-
-function resetPhotoSourceMenus() {
-  if (photoSourceSelect) {
-    photoSourceSelect.value = "";
-  }
-  if (hundredPhotoSourceSelect) {
-    hundredPhotoSourceSelect.value = "";
-  }
-}
-
-function handleRandomImageUpload(event, afterLoad) {
-  const input = event.target;
-  const file = chooseRandomImageFile(input);
+function handleImageUpload(event) {
+  const file = event.target.files && event.target.files[0];
   if (!file) {
-    if (!gameStarted) {
-      clearRevealImageSelection();
-    }
-    resetPhotoSourceMenus();
+    clearRevealImageSelection();
     return;
   }
-  loadRevealImageFile(file, afterLoad);
-  input.value = "";
-  resetPhotoSourceMenus();
+  loadRevealImageFile(file);
 }
 
-function handleCameraImageUpload(event, afterLoad) {
-  const input = event.target;
-  const files = getImageFilesFromInput(input);
-  const file = files[0];
+function handleHundredImageUpload(event) {
+  const file = event.target.files && event.target.files[0];
   if (!file) {
-    resetPhotoSourceMenus();
     return;
   }
-  loadRevealImageFile(file, afterLoad);
-  input.value = "";
-  resetPhotoSourceMenus();
-}
-
-function handlePhotoSourceChange(event) {
-  const source = event.target.value;
-  if (source === "random" && randomPhotoInput) {
-    randomPhotoInput.click();
-  } else if (source === "camera" && cameraPhotoInput) {
-    cameraPhotoInput.click();
-  }
-}
-
-function handleHundredPhotoSourceChange(event) {
-  const source = event.target.value;
-  if (source === "random" && hundredRandomImageUploadInput) {
-    hundredRandomImageUploadInput.click();
-  } else if (source === "camera" && hundredCameraImageUploadInput) {
-    hundredCameraImageUploadInput.click();
+  loadRevealImageFile(file, resumeAfterHundredPhotoChange);
+  if (hundredImageUploadInput) {
+    hundredImageUploadInput.value = "";
   }
 }
 
@@ -1576,7 +1504,7 @@ function showHundredPhotoPrompt() {
     hundredPhotoTitle.textContent = pendingHundredScore + " points!";
   }
   if (hundredPhotoText) {
-    hundredPhotoText.textContent = "Choose Random Picture or Take A Picture for the next background reveal. Bruce will restart in the center and receive 3 seconds of God Mode.";
+    hundredPhotoText.textContent = "Pick a new picture to reveal in the background. Bruce will restart in the center and receive 3 seconds of God Mode.";
   }
   if (hundredPhotoModal) {
     hundredPhotoModal.style.display = "flex";
@@ -1589,7 +1517,6 @@ function hideHundredPhotoPrompt() {
   if (hundredPhotoModal) {
     hundredPhotoModal.style.display = "none";
   }
-  resetPhotoSourceMenus();
 }
 
 function promptForNewPhotoAtHundred(pipe) {
@@ -2287,7 +2214,7 @@ function startGame() {
     return;
   }
   if (!revealImageReady) {
-    alert("Choose Random Picture or Take A Picture before starting the game.");
+    alert("Choose a photo before starting the game.");
     return;
   }
   resetRoundState();
@@ -2391,24 +2318,13 @@ clearSpriteChoicesButton.addEventListener("click", clearSpriteChoicesAdmin);
 exportAllDataButton.addEventListener("click", exportAllGameDataAdmin);
 gameOverLogoutButton.addEventListener("click", logoutAccount);
 gameOverPlayAgainButton.addEventListener("click", startGame);
-if (photoSourceSelect) {
-  photoSourceSelect.addEventListener("change", handlePhotoSourceChange);
-}
-if (randomPhotoInput) {
-  randomPhotoInput.addEventListener("change", event => handleRandomImageUpload(event));
-}
-if (cameraPhotoInput) {
-  cameraPhotoInput.addEventListener("change", event => handleCameraImageUpload(event));
-}
-if (hundredPhotoSourceSelect) {
-  hundredPhotoSourceSelect.addEventListener("change", handleHundredPhotoSourceChange);
-}
-if (hundredRandomImageUploadInput) {
-  hundredRandomImageUploadInput.addEventListener("change", event => handleRandomImageUpload(event, resumeAfterHundredPhotoChange));
-}
-if (hundredCameraImageUploadInput) {
-  hundredCameraImageUploadInput.addEventListener("change", event => handleCameraImageUpload(event, resumeAfterHundredPhotoChange));
-}
+imageUploadInput.addEventListener("change", handleImageUpload);
+hundredPhotoPickButton.addEventListener("click", () => {
+  if (hundredImageUploadInput) {
+    hundredImageUploadInput.click();
+  }
+});
+hundredImageUploadInput.addEventListener("change", handleHundredImageUpload);
 spritePicker.addEventListener("change", () => {
   if (!activeUserName) {
     return;
