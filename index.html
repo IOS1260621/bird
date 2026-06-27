@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V27</title>
+  <title>InventorPath Flappy Game V28</title>
   <style>
     html, body {
       width: 100%;
@@ -490,11 +490,11 @@ const PNG_DOG_SPRITES = AVAILABLE_DOG_SPRITES.filter(spriteName => spriteName.to
 
 // ── Game settings ───────────────────────────────────────────────────────────
 const GAME_CONFIG = {
-  dataVersion: 25,
+  dataVersion: 28,
   maxScoreHistoryEntries: 100,
   firstMysteryScore: 5,
-  repeatMysteryStartScore: 22,
-  repeatMysteryInterval: 7,
+  repeatMysteryStartScore: 10,
+  repeatMysteryInterval: 5,
   godModeDurationMs: 2000,
   regularEffectDurationMs: 15000,
   collisionRadiusMultiplier: 0.82,
@@ -523,13 +523,14 @@ const GAME_CONFIG = {
   pipeGapMax: 228,
   pipeGapFloor: 142,
   pipeGapScale: 1.32,
+  pipeGapOverallMultiplier: 0.92,
   pipeGapScore50Factor: 0.96,
   pipeGapEvery50Factor: 0.95,
   mysteryEffectWeights: [
     { type: "tiny", label: "Tiny", weight: 24 },
     { type: "large", label: "Large", weight: 24 },
-    { type: "slow", label: "Slow Pipes", weight: 24 },
-    { type: "fast", label: "Fast Pipes", weight: 24 },
+    { type: "slow", label: "Slow", weight: 24 },
+    { type: "fast", label: "Fast", weight: 24 },
     { type: "god", label: "God Mode", weight: 4 }
   ]
 };
@@ -860,7 +861,7 @@ function renderPlayerButtons() {
 }
 
 function renderAuthStatus() {
-  // V27: seamless 100-point photo swap with Bruce kept in place and 2 seconds of God Mode.
+  // V28: mystery boxes every 5 points, gaps 8% smaller, seamless 100-point photo swap kept.
   authStatus.style.display = "none";
   authNote.style.display = "none";
   authUserRow.style.display = "none";
@@ -1658,8 +1659,8 @@ function applyRegularMysteryEffect(effectType) {
   const effectMap = {
     tiny: { slot: "size", label: "Tiny", sizeMultiplier: 0.67 },
     large: { slot: "size", label: "Large", sizeMultiplier: 1.5 },
-    slow: { slot: "speed", label: "Slow Pipes", speedMultiplier: 0.5 },
-    fast: { slot: "speed", label: "Fast Pipes", speedMultiplier: 1.3 }
+    slow: { slot: "speed", label: "Slow", speedMultiplier: 0.5 },
+    fast: { slot: "speed", label: "Fast", speedMultiplier: 1.3 }
   };
 
   const effect = effectMap[effectType];
@@ -2421,7 +2422,7 @@ function createPipe() {
   const gapFactor = score >= 50
     ? GAME_CONFIG.pipeGapScore50Factor * Math.pow(GAME_CONFIG.pipeGapEvery50Factor, Math.floor((score - 50) / 50))
     : 1.0;
-  const gap = Math.max(GAME_CONFIG.pipeGapFloor, baseGap - difficulty) * GAME_CONFIG.pipeGapScale * gapFactor;
+  const gap = Math.max(GAME_CONFIG.pipeGapFloor, baseGap - difficulty) * GAME_CONFIG.pipeGapScale * gapFactor * GAME_CONFIG.pipeGapOverallMultiplier;
   const margin = Math.max(50, Math.floor(gameHeight * 0.1));
   const maxTop = Math.max(margin + 1, gameHeight - gap - margin);
   const topHeight = Math.random() * (maxTop - margin) + margin;
