@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V21</title>
+  <title>InventorPath Flappy Game V26</title>
   <style>
     html, body {
       width: 100%;
@@ -271,8 +271,8 @@
     }
     .pause-button {
       position: fixed;
-      right: 12px;
-      top: 12px;
+      right: calc(12px + env(safe-area-inset-right));
+      bottom: calc(12px + env(safe-area-inset-bottom));
       z-index: 12;
       display: none;
       border: 1px solid rgba(15, 23, 42, 0.24);
@@ -310,6 +310,57 @@
       background: #ffffff;
       color: #0f172a;
       border: 1px solid #94a3b8;
+    }
+
+    .hundred-photo-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.62);
+      touch-action: auto;
+      pointer-events: auto;
+    }
+    .hundred-photo-card {
+      width: min(92vw, 420px);
+      background: rgba(255, 255, 255, 0.96);
+      color: #0f172a;
+      border: 1px solid rgba(15, 23, 42, 0.16);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 20px 48px rgba(15, 23, 42, 0.34);
+      text-align: center;
+      backdrop-filter: blur(5px);
+    }
+    .hundred-photo-title {
+      font-size: 22px;
+      font-weight: 950;
+      margin-bottom: 8px;
+    }
+    .hundred-photo-text {
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.4;
+      color: #334155;
+      margin-bottom: 14px;
+    }
+    .hundred-photo-button {
+      width: 100%;
+      border: 0;
+      border-radius: 14px;
+      background: #dc2626;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 950;
+      padding: 13px 14px;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(220, 38, 38, 0.24);
+    }
+    .hundred-photo-button:active {
+      transform: translateY(1px);
     }
 
   </style>
@@ -373,6 +424,15 @@
   <div class="start-instructions-title">Please pick an image to reveal in background.</div>
   <div class="start-instructions-text">Goal: bounce Bruce through the gaps. Mystery boxes appear throughout the game and temporarily affect gameplay.</div>
 </div>
+
+<div class="hundred-photo-modal" id="hundredPhotoModal" aria-live="polite">
+  <div class="hundred-photo-card">
+    <div class="hundred-photo-title" id="hundredPhotoTitle">100 points!</div>
+    <div class="hundred-photo-text" id="hundredPhotoText">Pick a new picture to reveal in the background. Bruce will restart at the last column and receive 2 seconds of God Mode.</div>
+    <button class="hundred-photo-button" id="hundredPhotoPickButton" type="button">Pick New Picture</button>
+    <input id="hundredImageUploadInput" type="file" accept="image/*" style="display:none;" aria-label="Choose new background photo">
+  </div>
+</div>
 <div class="game-over-actions" id="gameOverActions">
   <button class="logout-gameover-button" id="gameOverLogoutButton" type="button">Choose Player</button>
   <button class="play-again-button" id="gameOverPlayAgainButton" type="button">Play Again</button>
@@ -385,6 +445,11 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const hudPanel = document.getElementById("hudPanel");
 const startInstructions = document.getElementById("startInstructions");
+const hundredPhotoModal = document.getElementById("hundredPhotoModal");
+const hundredPhotoTitle = document.getElementById("hundredPhotoTitle");
+const hundredPhotoText = document.getElementById("hundredPhotoText");
+const hundredPhotoPickButton = document.getElementById("hundredPhotoPickButton");
+const hundredImageUploadInput = document.getElementById("hundredImageUploadInput");
 const gameOverActions = document.getElementById("gameOverActions");
 const gameOverLogoutButton = document.getElementById("gameOverLogoutButton");
 const gameOverPlayAgainButton = document.getElementById("gameOverPlayAgainButton");
@@ -425,7 +490,7 @@ const PNG_DOG_SPRITES = AVAILABLE_DOG_SPRITES.filter(spriteName => spriteName.to
 
 // ── Game settings ───────────────────────────────────────────────────────────
 const GAME_CONFIG = {
-  dataVersion: 18,
+  dataVersion: 25,
   maxScoreHistoryEntries: 100,
   firstMysteryScore: 5,
   repeatMysteryStartScore: 22,
@@ -538,6 +603,10 @@ let revealImageReady = false;
 let revealImageName = "";
 let revealImageObjectUrl = "";
 let revealCellOrder = [];
+let backgroundSwapPending = false;
+let pendingHundredScore = 0;
+let nextPhotoMilestoneScore = 100;
+let pendingResumePipeSnapshot = null;
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -790,7 +859,7 @@ function renderPlayerButtons() {
 }
 
 function renderAuthStatus() {
-  // V20: phone photo picker, start instructions, and bold red Effect value.
+  // V25: phone photo picker, background reveal, and new-photo prompts every 100 points.
   authStatus.style.display = "none";
   authNote.style.display = "none";
   authUserRow.style.display = "none";
@@ -1200,17 +1269,19 @@ function resetImageRevealPuzzle() {
   }
 }
 
-function handleImageUpload(event) {
-  const file = event.target.files && event.target.files[0];
+function clearRevealImageSelection() {
+  revealImageReady = false;
+  revealImageName = "";
+  revealCellOrder = [];
+  if (imageUploadName) {
+    imageUploadName.style.display = "none";
+    imageUploadName.textContent = "";
+  }
+  draw();
+}
+
+function loadRevealImageFile(file, afterLoad) {
   if (!file) {
-    revealImageReady = false;
-    revealImageName = "";
-    revealCellOrder = [];
-    if (imageUploadName) {
-      imageUploadName.style.display = "none";
-      imageUploadName.textContent = "";
-    }
-    draw();
     return;
   }
 
@@ -1229,7 +1300,11 @@ function handleImageUpload(event) {
       imageUploadName.style.display = "block";
       imageUploadName.textContent = "Photo loaded: " + revealImageName;
     }
-    draw();
+    if (typeof afterLoad === "function") {
+      afterLoad();
+    } else {
+      draw();
+    }
   };
   revealImage.onerror = () => {
     revealImageReady = false;
@@ -1244,8 +1319,32 @@ function handleImageUpload(event) {
   revealImage.src = revealImageObjectUrl;
 }
 
+function handleImageUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) {
+    clearRevealImageSelection();
+    return;
+  }
+  loadRevealImageFile(file);
+}
+
+function handleHundredImageUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) {
+    return;
+  }
+  loadRevealImageFile(file, resumeAfterHundredPhotoChange);
+  if (hundredImageUploadInput) {
+    hundredImageUploadInput.value = "";
+  }
+}
+
 function getImageRevealCount() {
-  return clamp(Math.floor(score), 0, 100);
+
+  if (backgroundSwapPending && pendingHundredScore > 0) {
+    return 100;
+  }
+  return clamp(Math.floor(score % 100), 0, 100);
 }
 
 function drawImageRevealPuzzle(panelX, panelY, panelSize) {
@@ -1394,6 +1493,85 @@ function drawRevealedPhotoBackground() {
 function drawGameBackground() {
   drawSkyBackground();
   drawRevealedPhotoBackground();
+}
+
+
+function showHundredPhotoPrompt() {
+  if (hundredPhotoTitle) {
+    hundredPhotoTitle.textContent = pendingHundredScore + " points!";
+  }
+  if (hundredPhotoText) {
+    hundredPhotoText.textContent = "Pick a new picture to reveal in the background. Bruce will restart at the last column and receive 2 seconds of God Mode.";
+  }
+  if (hundredPhotoModal) {
+    hundredPhotoModal.style.display = "flex";
+  }
+  updatePauseButtonVisibility();
+  draw();
+}
+
+function hideHundredPhotoPrompt() {
+  if (hundredPhotoModal) {
+    hundredPhotoModal.style.display = "none";
+  }
+}
+
+function promptForNewPhotoAtHundred(pipe) {
+  if (backgroundSwapPending || score <= 0 || score !== nextPhotoMilestoneScore) {
+    return;
+  }
+
+  pendingHundredScore = score;
+  nextPhotoMilestoneScore += 100;
+  backgroundSwapPending = true;
+  gamePaused = true;
+  bird.velocity = 0;
+  pendingResumePipeSnapshot = pipe ? {
+    id: pipe.id,
+    x: pipe.x,
+    width: pipe.width,
+    top: pipe.top,
+    bottom: pipe.bottom
+  } : null;
+  showHundredPhotoPrompt();
+}
+
+function repositionPlayerAtHundredColumn() {
+  const safeX = Math.max(70, Math.min(100, gameWidth * 0.2));
+  bird.x = safeX;
+
+  const snapshot = pendingResumePipeSnapshot;
+  if (snapshot) {
+    const matchingPipe = pipes.find(pipe => pipe.id === snapshot.id);
+    if (matchingPipe) {
+      matchingPipe.x = bird.x + Math.round(clamp(34 * uiScale, 28, 46));
+      matchingPipe.width = snapshot.width;
+      matchingPipe.top = snapshot.top;
+      matchingPipe.bottom = snapshot.bottom;
+      matchingPipe.passed = true;
+      bird.y = clamp((matchingPipe.top + matchingPipe.bottom) * 0.5, bird.size + 4, gameHeight - bird.size - 4);
+    } else {
+      bird.y = clamp((snapshot.top + snapshot.bottom) * 0.5, bird.size + 4, gameHeight - bird.size - 4);
+    }
+  } else {
+    bird.y = gameHeight / 2;
+  }
+
+  bird.velocity = 0;
+}
+
+function resumeAfterHundredPhotoChange() {
+  backgroundSwapPending = false;
+  pendingHundredScore = 0;
+  hideHundredPhotoPrompt();
+  resetImageRevealPuzzle();
+  repositionPlayerAtHundredColumn();
+  pendingResumePipeSnapshot = null;
+  invincibleUntil = Date.now() + GAME_CONFIG.godModeDurationMs;
+  rememberRoundEffect("God Mode");
+  gamePaused = false;
+  updatePauseButtonVisibility();
+  draw();
 }
 
 // ── Effects system ──────────────────────────────────────────────────────────
@@ -1952,6 +2130,9 @@ function updateHudVisibility() {
   if (!gameOver) {
     gameOverActions.style.display = "none";
   }
+  if (!backgroundSwapPending) {
+    hideHundredPhotoPrompt();
+  }
   updatePauseButtonVisibility();
 }
 
@@ -1973,7 +2154,7 @@ function updateGameOverActionsLayout(tableX, tableY, tableWidth, tableHeight) {
 
 
 function updatePauseButtonVisibility() {
-  pauseGameButton.style.display = gameStarted && !gameOver && activeUserName ? "block" : "none";
+  pauseGameButton.style.display = gameStarted && !gameOver && activeUserName && !backgroundSwapPending ? "block" : "none";
   pauseGameButton.textContent = gamePaused ? "Resume" : "Pause";
 }
 
@@ -2007,6 +2188,11 @@ function resetRoundState() {
   sizeMultiplier = 1;
   recalculateBirdSize();
   resetImageRevealPuzzle();
+  backgroundSwapPending = false;
+  pendingHundredScore = 0;
+  nextPhotoMilestoneScore = 100;
+  pendingResumePipeSnapshot = null;
+  hideHundredPhotoPrompt();
   updatePauseButtonVisibility();
 }
 
@@ -2130,6 +2316,12 @@ exportAllDataButton.addEventListener("click", exportAllGameDataAdmin);
 gameOverLogoutButton.addEventListener("click", logoutAccount);
 gameOverPlayAgainButton.addEventListener("click", startGame);
 imageUploadInput.addEventListener("change", handleImageUpload);
+hundredPhotoPickButton.addEventListener("click", () => {
+  if (hundredImageUploadInput) {
+    hundredImageUploadInput.click();
+  }
+});
+hundredImageUploadInput.addEventListener("change", handleHundredImageUpload);
 spritePicker.addEventListener("change", () => {
   if (!activeUserName) {
     return;
@@ -2181,7 +2373,7 @@ function flap() {
 
 
 window.addEventListener("pointerdown", event => {
-  if (hudPanel.contains(event.target) || gameOverActions.contains(event.target) || pauseGameButton.contains(event.target)) {
+  if (hudPanel.contains(event.target) || gameOverActions.contains(event.target) || pauseGameButton.contains(event.target) || (hundredPhotoModal && hundredPhotoModal.contains(event.target))) {
     return;
   }
 
@@ -2278,6 +2470,7 @@ function update() {
     if (!pipe.passed && pipe.x + pipe.width < bird.x) {
       score++;
       pipe.passed = true;
+      promptForNewPhotoAtHundred(pipe);
     }
 
     const pipeCollision =
@@ -2291,6 +2484,10 @@ function update() {
       }
     }
   });
+
+  if (backgroundSwapPending) {
+    return;
+  }
 
   pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
 
