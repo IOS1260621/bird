@@ -469,8 +469,8 @@
   <div class="asset-warning" id="assetWarning"></div>
 </div>
 <div class="start-instructions" id="startInstructions">
-  <div class="start-instructions-title">Please pick an image to reveal in background.</div>
-  <div class="start-instructions-text">Goal: bounce Bruce through the gaps. Mystery boxes appear throughout the game and temporarily affect gameplay.</div>
+  <div class="start-instructions-title">Pick Chubdoo or Chubson</div>
+  <div class="start-instructions-text">Then pick img for Bouncing Bruce, then pick a photo to reveal in background from your own camera roll.</div>
 </div>
 
 <div class="hundred-photo-modal" id="hundredPhotoModal" aria-live="polite">
@@ -2634,50 +2634,68 @@ function drawFibonacciPattern(pipe, y, height, timeMs, sectionOffset) {
     return;
   }
 
-  // Every 10 points, a new deterministic-random Fibonacci pattern appears
-  // in selected columns. The selected columns change each 10-point level.
-  const patternSeed = pipe.id * 31 + level * 17 + sectionOffset;
-  if (seededNoise(patternSeed) < 0.38) {
+  // Every 10 points, red Fibonacci marks appear in a more randomized pattern.
+  // The randomness is deterministic per column/score level, so it does not flicker frame-to-frame.
+  const patternSeed = pipe.id * 97 + level * 53 + sectionOffset * 0.37;
+  if (seededNoise(patternSeed) < 0.22) {
     return;
   }
 
-  const fib = [1, 1, 2, 3, 5, 8, 13, 21];
+  const baseFib = [1, 1, 2, 3, 5, 8, 13, 21];
+  const fib = baseFib.slice();
+  for (let i = fib.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(seededNoise(patternSeed + i * 19.73) * (i + 1));
+    const temp = fib[i];
+    fib[i] = fib[j];
+    fib[j] = temp;
+  }
+
   const cx = pipe.x + pipe.width / 2;
   const availableHeight = Math.max(40, height - 24);
   const topY = y + 12;
   const pulse = 0.5 + 0.5 * Math.sin(timeMs * 0.004 + patternSeed);
+  const points = [];
 
   ctx.save();
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
   fib.forEach((value, index) => {
-    const t = index / (fib.length - 1);
+    const slot = (index + seededNoise(patternSeed + value * 7.91) * 0.72) / fib.length;
+    const t = clamp(slot, 0.04, 0.96);
     const dotY = topY + availableHeight * t;
-    const waveX = Math.sin(t * Math.PI * 3 + patternSeed) * pipe.width * 0.22;
-    const radius = clamp(value * 0.55 * uiScale, 2.5, 11);
+    const jitterSeed = patternSeed + index * 41.11 + value * 5.17;
+    const waveX = (seededNoise(jitterSeed) - 0.5) * pipe.width * 0.72;
+    const radiusNoise = 0.72 + seededNoise(jitterSeed + 13.13) * 0.72;
+    const radius = clamp(value * 0.48 * radiusNoise * uiScale, 2.5, 12);
+    const x = clamp(cx + waveX, pipe.x + radius + 3, pipe.x + pipe.width - radius - 3);
+    const opacity = 0.28 + pulse * 0.18 + seededNoise(jitterSeed + 29.29) * 0.18;
+
+    points.push({ x, y: dotY, value });
 
     ctx.beginPath();
-    ctx.fillStyle = "rgba(57, 255, 20, " + (0.22 + pulse * 0.16) + ")";
-    ctx.arc(cx + waveX, dotY, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(220, 38, 38, " + clamp(opacity, 0.22, 0.72) + ")";
+    ctx.shadowColor = "rgba(220, 38, 38, 0.45)";
+    ctx.shadowBlur = 8;
+    ctx.arc(x, dotY, radius, 0, Math.PI * 2);
     ctx.fill();
+    ctx.shadowBlur = 0;
 
-    ctx.font = "700 " + Math.round(clamp(9 * uiScale, 8, 12)) + "px Arial";
-    ctx.fillStyle = "rgba(15, 23, 42, 0.75)";
-    ctx.fillText(String(value), cx + waveX, dotY);
+    if (seededNoise(jitterSeed + 71.71) > 0.18) {
+      ctx.font = "800 " + Math.round(clamp(9 * uiScale, 8, 12)) + "px Arial";
+      ctx.fillStyle = "rgba(255, 235, 235, 0.9)";
+      ctx.fillText(String(value), x, dotY);
+    }
   });
 
-  ctx.strokeStyle = "rgba(57, 255, 20, 0.4)";
+  ctx.strokeStyle = "rgba(220, 38, 38, 0.46)";
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  fib.forEach((value, index) => {
-    const t = index / (fib.length - 1);
-    const dotY = topY + availableHeight * t;
-    const waveX = Math.sin(t * Math.PI * 3 + patternSeed) * pipe.width * 0.22;
-    if (index === 0) {
-      ctx.moveTo(cx + waveX, dotY);
+  points.forEach((point, index) => {
+    if (index === 0 || seededNoise(patternSeed + index * 23.23) < 0.16) {
+      ctx.moveTo(point.x, point.y);
     } else {
-      ctx.lineTo(cx + waveX, dotY);
+      ctx.lineTo(point.x, point.y);
     }
   });
   ctx.stroke();
