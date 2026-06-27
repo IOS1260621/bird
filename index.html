@@ -534,7 +534,7 @@ const GAME_CONFIG = {
   godModeDurationMs: 2000,
   imagePickGodModeDurationMs: 3000,
   regularEffectDurationMs: 15000,
-  slowEffectDurationMultiplier: 0.5,
+  slowEffectDurationMs: 5000,
   collisionRadiusMultiplier: 0.82,
   playerBaseSizeMin: 20,
   playerBaseSizeMax: 26,
@@ -1662,7 +1662,7 @@ function applyRegularMysteryEffect(effectType) {
       slot: "speed",
       label: "Slow",
       speedMultiplier: 0.5,
-      durationMs: GAME_CONFIG.regularEffectDurationMs * GAME_CONFIG.slowEffectDurationMultiplier
+      durationMs: GAME_CONFIG.slowEffectDurationMs
     },
     fast: { slot: "speed", label: "Fast", speedMultiplier: 1.3 }
   };
