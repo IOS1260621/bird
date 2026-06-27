@@ -577,6 +577,7 @@ const TOP3_FOREVER_KEY = "inventorpath_top3_forever";
 const PER_USER_TOP3_FOREVER_KEY = "inventorpath_per_user_top3_forever";
 const DAILY_STATS_KEY = "inventorpath_daily_stats";
 const TOTAL_POINTS_BY_USER_KEY = "inventorpath_total_points_by_user";
+const TOTAL_POINTS_DATE_KEY = "inventorpath_total_points_date";
 const PAUSE_BUTTON_RIGHT_KEY = "inventorpath_pause_button_right";
 const LAST_RESET_DATE_KEY = "inventorpath_last_reset_date";
 const DATA_VERSION_KEY = "inventorpath_data_version";
@@ -1072,10 +1073,12 @@ function loadPerUserTop3Forever() {
       return {};
     }
 
+    const today = getDayString();
     const cleaned = {};
     Object.keys(parsed).forEach(userKey => {
       const entries = Array.isArray(parsed[userKey]) ? parsed[userKey] : [];
-      const ranked = mergeScoreEntries(entries).slice(0, 3);
+      const todaysEntries = entries.filter(entry => isScoreEntryFromDay(entry, today));
+      const ranked = mergeScoreEntries(todaysEntries).slice(0, 3);
       if (ranked.length > 0) {
         cleaned[userKey] = ranked;
       }
@@ -1835,7 +1838,8 @@ function loadTop3Forever() {
     const raw = localStorage.getItem(TOP3_FOREVER_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(parsed)) return [];
-    return mergeScoreEntries(parsed).slice(0, 3);
+    const today = getDayString();
+    return mergeScoreEntries(parsed.filter(entry => isScoreEntryFromDay(entry, today))).slice(0, 3);
   } catch {
     return [];
   }
@@ -1859,9 +1863,12 @@ function loadScoreHistory() {
       return [];
     }
 
-    const entries = parsed.filter(isValidScoreEntry).slice(0, GAME_CONFIG.maxScoreHistoryEntries);
+    const today = getDayString();
+    const entries = parsed
+      .filter(entry => isValidScoreEntry(entry) && isScoreEntryFromDay(entry, today))
+      .slice(0, GAME_CONFIG.maxScoreHistoryEntries);
 
-    // Re-merge global top-3 forever so those records survive daily resets.
+    // V29 daily-only scoreboard: merge only today's top records, never older days.
     return mergeScoreEntries(entries, loadTop3Forever()).slice(0, GAME_CONFIG.maxScoreHistoryEntries);
   } catch {
     return [];
@@ -1914,6 +1921,19 @@ function getDayString(date) {
     String(d.getDate()).padStart(2, "0");
 }
 
+function isScoreEntryFromDay(entry, dayString) {
+  if (!entry || typeof entry.playedAt !== "string") {
+    return false;
+  }
+
+  const playedAt = new Date(entry.playedAt);
+  if (Number.isNaN(playedAt.getTime())) {
+    return false;
+  }
+
+  return getDayString(playedAt) === dayString;
+}
+
 // ── Daily activity stats (per-user database stored in localStorage) ───────────
 
 function loadDailyStats() {
@@ -1928,11 +1948,13 @@ function loadDailyStats() {
 }
 
 function saveDailyStats(stats) {
-  // Retain only the most recent 30 days to keep storage lean.
-  const days = Object.keys(stats).sort();
-  if (days.length > 30) {
-    days.slice(0, days.length - 30).forEach(day => delete stats[day]);
-  }
+  // V29 daily-only scoreboard: keep only today's stats.
+  const today = getDayString();
+  Object.keys(stats).forEach(day => {
+    if (day !== today) {
+      delete stats[day];
+    }
+  });
   localStorage.setItem(DAILY_STATS_KEY, JSON.stringify(stats));
 }
 
@@ -1971,6 +1993,11 @@ function createEmptyTotalPointsByUser() {
 function loadTotalPointsByUser() {
   const totals = createEmptyTotalPointsByUser();
 
+  // V29 daily-only scoreboard: old total-points battle data expires at midnight.
+  if (localStorage.getItem(TOTAL_POINTS_DATE_KEY) !== getDayString()) {
+    return totals;
+  }
+
   try {
     const raw = localStorage.getItem(TOTAL_POINTS_BY_USER_KEY);
     const parsed = raw ? JSON.parse(raw) : {};
@@ -1998,6 +2025,7 @@ function loadTotalPointsByUser() {
 
 function saveTotalPointsByUser(totals) {
   localStorage.setItem(TOTAL_POINTS_BY_USER_KEY, JSON.stringify(totals));
+  localStorage.setItem(TOTAL_POINTS_DATE_KEY, getDayString());
 }
 
 function updateTotalPointsForPlayer(name, roundScore) {
@@ -2037,36 +2065,54 @@ function getTotalBattlePoints() {
 
 
 function initializeTotalPointsFromKnownScores() {
-  if (localStorage.getItem(TOTAL_POINTS_BY_USER_KEY)) {
+  if (localStorage.getItem(TOTAL_POINTS_BY_USER_KEY) && localStorage.getItem(TOTAL_POINTS_DATE_KEY) === getDayString()) {
     return;
   }
 
   const totals = createEmptyTotalPointsByUser();
-  scoreHistory.filter(isValidScoreEntry).forEach(entry => {
-    const userKey = getUserKey(entry.name);
-    if (!isFixedUserKey(userKey)) {
-      return;
-    }
-    totals[userKey].totalPoints += Math.max(0, Math.floor(Number(entry.score) || 0));
-    totals[userKey].gamesPlayed += 1;
-  });
+  const today = getDayString();
+  scoreHistory
+    .filter(entry => isValidScoreEntry(entry) && isScoreEntryFromDay(entry, today))
+    .forEach(entry => {
+      const userKey = getUserKey(entry.name);
+      if (!isFixedUserKey(userKey)) {
+        return;
+      }
+      totals[userKey].totalPoints += Math.max(0, Math.floor(Number(entry.score) || 0));
+      totals[userKey].gamesPlayed += 1;
+    });
   saveTotalPointsByUser(totals);
 }
 
 // ── Midnight score reset ──────────────────────────────────────────────────────
 
+function clearScoreDataForNewDay() {
+  // V29 daily-only scoreboard: reset all score and pie-chart data at local midnight.
+  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
+  localStorage.setItem(TOP3_FOREVER_KEY, JSON.stringify([]));
+  localStorage.setItem(PER_USER_TOP3_FOREVER_KEY, JSON.stringify({}));
+  localStorage.setItem(DAILY_STATS_KEY, JSON.stringify({}));
+  localStorage.removeItem(TOTAL_POINTS_BY_USER_KEY);
+  localStorage.removeItem(TOTAL_POINTS_DATE_KEY);
+  getLocalStorageKeys(SCORE_FILE_PREFIX).forEach(key => localStorage.removeItem(key));
+  scoreHistory = [];
+}
+
 function maybeResetScoresNightly() {
   const today = getDayString();
   const lastReset = localStorage.getItem(LAST_RESET_DATE_KEY) || "";
-  if (lastReset !== today) {
-    // Clear the daily score list only. Global top 3 and each user's permanent
-    // top 3 stay saved in separate localStorage records.
-    localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
-    scoreHistory = loadScoreHistory();
+
+  if (!lastReset) {
+    // First run under the daily-only system: mark today without clearing current play.
     localStorage.setItem(LAST_RESET_DATE_KEY, today);
+  } else if (lastReset !== today) {
+    clearScoreDataForNewDay();
+    localStorage.setItem(LAST_RESET_DATE_KEY, today);
+    initializeTotalPointsFromKnownScores();
     saveCurrentUserScoreFile();
     renderScoreHistory();
   }
+
   // Schedule next check 5 s after the next calendar midnight.
   const now = new Date();
   const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
@@ -2075,7 +2121,7 @@ function maybeResetScoresNightly() {
 
 function renderScoreHistory() {
   // V17: no visible statistics on the start screen.
-  // Scores are still saved for the Game Over pie chart and score files.
+  // Scores are saved for today only, including the Game Over pie chart and score files.
   if (scoreList) scoreList.innerHTML = "";
   if (scoreListTitle) scoreListTitle.textContent = "";
   applyCurrentPlayerSprite();
