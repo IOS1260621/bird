@@ -153,6 +153,11 @@
       cursor: pointer;
       box-shadow: 0 8px 18px rgba(2, 132, 199, 0.22);
     }
+    .start-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+      box-shadow: none;
+    }
     .start-button:active {
       transform: translateY(1px);
     }
@@ -214,6 +219,40 @@
       max-height: 82px;
       object-fit: contain;
       image-rendering: auto;
+    }
+    .selected-sprite-label {
+      margin: -2px 0 10px;
+      text-align: center;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .sprite-tools-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .sprite-tool-button {
+      border: 1px solid #94a3b8;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #0f172a;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    .sprite-tool-button:active {
+      transform: translateY(1px);
+    }
+    .start-status {
+      margin-top: 7px;
+      text-align: center;
+      color: #334155;
+      font-size: 11px;
+      font-weight: 800;
+      min-height: 14px;
     }
     .player-button-row {
       display: flex;
@@ -411,6 +450,7 @@
   <div class="selected-sprite-preview" id="selectedSpritePreview" aria-live="polite">
     <img id="selectedSpritePreviewImage" alt="Selected Bruce sprite preview">
   </div>
+  <div class="selected-sprite-label" id="selectedSpriteLabel"></div>
   <div class="player-button-row" id="playerButtonRow">
     <button class="player-choice-button" id="chooseChubdooButton" type="button">Chubdoo</button>
     <button class="player-choice-button" id="chooseChubsonButton" type="button">Chubson</button>
@@ -418,6 +458,10 @@
   <div class="hud-row" id="spritePickerRow">
     <label for="spritePicker">Bruce</label>
     <select id="spritePicker"></select>
+  </div>
+  <div class="sprite-tools-row" id="spriteToolsRow">
+    <button class="sprite-tool-button" id="randomSpriteButton" type="button">Random Bruce</button>
+    <button class="sprite-tool-button" id="resetSpriteButton" type="button">Reset Bruce</button>
   </div>
   <div class="hud-row image-upload-row" id="imageUploadRow">
     <label for="imageUploadInput">Photo</label>
@@ -433,6 +477,7 @@
   <ol class="score-list" id="scoreList"></ol>
   <div class="hud-actions">
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
+    <div class="start-status" id="startStatusMessage"></div>
   </div>
   <div class="asset-warning" id="assetWarning"></div>
 </div>
@@ -479,6 +524,10 @@ const chooseChubsonButton = document.getElementById("chooseChubsonButton");
 const chooseChubdooButton = document.getElementById("chooseChubdooButton");
 const selectedSpritePreview = document.getElementById("selectedSpritePreview");
 const selectedSpritePreviewImage = document.getElementById("selectedSpritePreviewImage");
+const selectedSpriteLabel = document.getElementById("selectedSpriteLabel");
+const randomSpriteButton = document.getElementById("randomSpriteButton");
+const resetSpriteButton = document.getElementById("resetSpriteButton");
+const startStatusMessage = document.getElementById("startStatusMessage");
 const assetWarning = document.getElementById("assetWarning");
 const pauseGameButton = document.getElementById("pauseGameButton");
 const ctGantryImage = new Image();
@@ -837,8 +886,7 @@ function renderAuthStatus() {
     localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
   }
 
-  startGameButton.disabled = false;
-  startGameButton.style.opacity = "1";
+  updateStartButtonState();
   renderPlayerButtons();
   updatePauseButtonVisibility();
 }
@@ -1157,6 +1205,35 @@ function getCurrentPlayerSpriteChoice() {
   return getDefaultSpriteForCurrentUser();
 }
 
+function applySpriteChoice(chosenSprite) {
+  if (!activeUserName) {
+    return;
+  }
+
+  const allowedSprites = getAllowedSpritesForCurrentUser();
+  const fallback = getDefaultSpriteForCurrentUser();
+  const chosen = allowedSprites.includes(chosenSprite) ? chosenSprite : fallback;
+
+  spriteChoicesByUser[normalizedName(playerName)] = chosen;
+  saveSpriteChoices();
+  currentSprite = chosen;
+  spritePicker.value = chosen;
+  updateSelectedSpritePreview(chosen);
+}
+
+function chooseRandomSprite() {
+  const allowedSprites = getAllowedSpritesForCurrentUser();
+  if (!allowedSprites.length) {
+    return;
+  }
+  const randomIndex = Math.floor(Math.random() * allowedSprites.length);
+  applySpriteChoice(allowedSprites[randomIndex]);
+}
+
+function resetSpriteChoiceToDefault() {
+  applySpriteChoice(getDefaultSpriteForCurrentUser());
+}
+
 function updateSelectedSpritePreview(spriteName) {
   if (!selectedSpritePreview || !selectedSpritePreviewImage) {
     return;
@@ -1165,12 +1242,39 @@ function updateSelectedSpritePreview(spriteName) {
   if (!activeUserName || !spriteName) {
     selectedSpritePreview.style.display = "none";
     selectedSpritePreviewImage.removeAttribute("src");
+    if (selectedSpriteLabel) {
+      selectedSpriteLabel.textContent = "";
+    }
     return;
   }
 
   selectedSpritePreview.style.display = "flex";
   selectedSpritePreviewImage.src = spriteName;
   selectedSpritePreviewImage.alt = "Selected Bruce sprite: " + spriteName;
+  if (selectedSpriteLabel) {
+    selectedSpriteLabel.textContent = "Selected: " + spriteName;
+  }
+}
+
+function updateStartButtonState() {
+  if (!startGameButton) {
+    return;
+  }
+
+  const canStart = Boolean(activeUserName && revealImageReady);
+  startGameButton.disabled = !canStart;
+
+  if (!startStatusMessage) {
+    return;
+  }
+
+  if (!activeUserName) {
+    startStatusMessage.textContent = "Choose a player to continue.";
+  } else if (!revealImageReady) {
+    startStatusMessage.textContent = "Pick a photo before starting.";
+  } else {
+    startStatusMessage.textContent = "Ready to play.";
+  }
 }
 
 function applyCurrentPlayerSprite() {
@@ -1230,6 +1334,7 @@ function clearRevealImageSelection() {
     imageUploadName.style.display = "none";
     imageUploadName.textContent = "";
   }
+  updateStartButtonState();
   draw();
 }
 
@@ -1262,6 +1367,8 @@ function loadRevealImageFile(file, afterLoad) {
       imageUploadName.textContent = "Photo loaded: " + revealImageName;
     }
 
+    updateStartButtonState();
+
     if (typeof afterLoad === "function") {
       afterLoad();
     } else {
@@ -1284,6 +1391,7 @@ function loadRevealImageFile(file, afterLoad) {
     }
 
     alert(previousReady ? "Could not load new photo. Keeping current photo." : "Could not load photo. Pick a different image.");
+    updateStartButtonState();
     draw();
   };
 
@@ -2144,6 +2252,7 @@ function updateHudVisibility() {
   if (!backgroundSwapPending) {
     hideHundredPhotoPrompt();
   }
+  updateStartButtonState();
   updatePauseButtonVisibility();
 }
 
@@ -2317,21 +2426,32 @@ hundredPhotoPickButton.addEventListener("click", () => {
 });
 hundredImageUploadInput.addEventListener("change", handleHundredImageUpload);
 hundredPhotoContinueButton.addEventListener("click", continueWithSamePictureAfterHundred);
+if (randomSpriteButton) {
+  randomSpriteButton.addEventListener("click", chooseRandomSprite);
+}
+if (resetSpriteButton) {
+  resetSpriteButton.addEventListener("click", resetSpriteChoiceToDefault);
+}
 spritePicker.addEventListener("change", () => {
   if (!activeUserName) {
     return;
   }
 
-  const allowedSprites = getAllowedSpritesForCurrentUser();
-  const fallback = getDefaultSpriteForCurrentUser();
-  const chosen = allowedSprites.includes(spritePicker.value) ? spritePicker.value : fallback;
-  spriteChoicesByUser[normalizedName(playerName)] = chosen;
-  saveSpriteChoices();
-  currentSprite = chosen;
-  spritePicker.value = chosen;
-  updateSelectedSpritePreview(chosen);
+  applySpriteChoice(spritePicker.value);
 });
 startGameButton.addEventListener("click", startGame);
+
+if (selectedSpritePreviewImage) {
+  selectedSpritePreviewImage.addEventListener("error", () => {
+    if (selectedSpritePreviewImage.getAttribute("src") !== DEFAULT_DOG_SPRITE) {
+      selectedSpritePreviewImage.src = DEFAULT_DOG_SPRITE;
+      selectedSpritePreviewImage.alt = "Selected Bruce sprite: " + DEFAULT_DOG_SPRITE;
+      if (selectedSpriteLabel) {
+        selectedSpriteLabel.textContent = "Selected: " + DEFAULT_DOG_SPRITE + " (fallback)";
+      }
+    }
+  });
+}
 
 scoreHistory = loadScoreHistory();
 purgeInactiveAccounts();
