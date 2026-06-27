@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V29</title>
+  <title>Bouncing Bruce V30</title>
   <style>
     html, body {
       width: 100%;
@@ -201,6 +201,31 @@
     }
     .player-select-title {
       display: none !important;
+    }
+    .game-title {
+      margin-bottom: 12px;
+      text-align: center;
+      color: #0f172a;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      border-radius: 18px;
+      padding: 12px 14px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(4px);
+    }
+    .game-title-main {
+      font-size: clamp(30px, 9vw, 46px);
+      font-weight: 950;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+    .game-title-sub {
+      margin-top: 6px;
+      font-size: 12px;
+      font-weight: 900;
+      color: #334155;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
     .selected-sprite-preview {
       margin-bottom: 10px;
@@ -411,6 +436,10 @@
 <body>
 <div class="hud-panel" id="hudPanel">
   <div class="player-select-title">Choose Player</div>
+  <div class="game-title" id="gameTitle" aria-label="Bouncing Bruce Version 30">
+    <div class="game-title-main">Bouncing Bruce</div>
+    <div class="game-title-sub">Version 30</div>
+  </div>
   <div class="selected-sprite-preview" id="selectedSpritePreview" aria-live="polite">
     <img id="selectedSpritePreviewImage" alt="Selected Bruce sprite preview">
   </div>
@@ -497,7 +526,7 @@ const PNG_DOG_SPRITES = AVAILABLE_DOG_SPRITES.filter(spriteName => spriteName.to
 
 // ── Game settings ───────────────────────────────────────────────────────────
 const GAME_CONFIG = {
-  dataVersion: 29,
+  dataVersion: 30,
   maxScoreHistoryEntries: 100,
   firstMysteryScore: 5,
   repeatMysteryStartScore: 10,
@@ -505,6 +534,7 @@ const GAME_CONFIG = {
   godModeDurationMs: 2000,
   imagePickGodModeDurationMs: 3000,
   regularEffectDurationMs: 15000,
+  slowEffectDurationMultiplier: 0.5,
   collisionRadiusMultiplier: 0.82,
   playerBaseSizeMin: 20,
   playerBaseSizeMax: 26,
@@ -837,7 +867,7 @@ function renderPlayerButtons() {
 }
 
 function renderAuthStatus() {
-  // V29: no password/login window. Players choose Chubdoo or Chubson directly.
+  // V30: no password/login window. Players choose Chubdoo or Chubson directly.
   if (!activeUserName) {
     activeUserName = "Chubdoo";
     playerName = "Chubdoo";
@@ -1624,22 +1654,28 @@ function tryActivateGodModeShield(collisionInfo) {
 
 function applyRegularMysteryEffect(effectType) {
   const now = Date.now();
-  const expiresAt = now + GAME_CONFIG.regularEffectDurationMs;
 
   const effectMap = {
     tiny: { slot: "size", label: "Tiny", sizeMultiplier: 0.67 },
     large: { slot: "size", label: "Large", sizeMultiplier: 1.5 },
-    slow: { slot: "speed", label: "Slow", speedMultiplier: 0.5 },
+    slow: {
+      slot: "speed",
+      label: "Slow",
+      speedMultiplier: 0.5,
+      durationMs: GAME_CONFIG.regularEffectDurationMs * GAME_CONFIG.slowEffectDurationMultiplier
+    },
     fast: { slot: "speed", label: "Fast", speedMultiplier: 1.3 }
   };
 
   const effect = effectMap[effectType];
   if (!effect) return;
 
+  const durationMs = effect.durationMs || GAME_CONFIG.regularEffectDurationMs;
+
   activeEffects[effect.slot] = {
     ...effect,
     type: effectType,
-    expiresAt
+    expiresAt: now + durationMs
   };
   recalculateEffectMultipliers();
   rememberRoundEffect(effect.label);
@@ -1868,7 +1904,7 @@ function loadScoreHistory() {
       .filter(entry => isValidScoreEntry(entry) && isScoreEntryFromDay(entry, today))
       .slice(0, GAME_CONFIG.maxScoreHistoryEntries);
 
-    // V29 daily-only scoreboard: merge only today's top records, never older days.
+    // V30 daily-only scoreboard: merge only today's top records, never older days.
     return mergeScoreEntries(entries, loadTop3Forever()).slice(0, GAME_CONFIG.maxScoreHistoryEntries);
   } catch {
     return [];
@@ -1948,7 +1984,7 @@ function loadDailyStats() {
 }
 
 function saveDailyStats(stats) {
-  // V29 daily-only scoreboard: keep only today's stats.
+  // V30 daily-only scoreboard: keep only today's stats.
   const today = getDayString();
   Object.keys(stats).forEach(day => {
     if (day !== today) {
@@ -1993,7 +2029,7 @@ function createEmptyTotalPointsByUser() {
 function loadTotalPointsByUser() {
   const totals = createEmptyTotalPointsByUser();
 
-  // V29 daily-only scoreboard: old total-points battle data expires at midnight.
+  // V30 daily-only scoreboard: old total-points battle data expires at midnight.
   if (localStorage.getItem(TOTAL_POINTS_DATE_KEY) !== getDayString()) {
     return totals;
   }
@@ -2087,7 +2123,7 @@ function initializeTotalPointsFromKnownScores() {
 // ── Midnight score reset ──────────────────────────────────────────────────────
 
 function clearScoreDataForNewDay() {
-  // V29 daily-only scoreboard: reset all score and pie-chart data at local midnight.
+  // V30 daily-only scoreboard: reset all score and pie-chart data at local midnight.
   localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
   localStorage.setItem(TOP3_FOREVER_KEY, JSON.stringify([]));
   localStorage.setItem(PER_USER_TOP3_FOREVER_KEY, JSON.stringify({}));
