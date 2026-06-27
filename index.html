@@ -171,34 +171,6 @@
     .secondary-button:active {
       transform: translateY(1px);
     }
-    .start-instructions {
-      position: fixed;
-      left: 50%;
-      bottom: max(14px, env(safe-area-inset-bottom));
-      transform: translateX(-50%);
-      z-index: 11;
-      width: min(92vw, 420px);
-      color: #0f172a;
-      background: rgba(255, 255, 255, 0.92);
-      border: 1px solid rgba(15, 23, 42, 0.18);
-      border-radius: 16px;
-      padding: 12px 14px;
-      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
-      backdrop-filter: blur(4px);
-      text-align: center;
-      line-height: 1.35;
-      pointer-events: none;
-    }
-    .start-instructions-title {
-      font-size: 15px;
-      font-weight: 900;
-      margin-bottom: 6px;
-    }
-    .start-instructions-text {
-      font-size: 12px;
-      font-weight: 700;
-      color: #334155;
-    }
     .player-select-title {
       display: none !important;
     }
@@ -468,9 +440,6 @@
   </div>
   <div class="asset-warning" id="assetWarning"></div>
 </div>
-<div class="start-instructions" id="startInstructions">
-  <div class="start-instructions-title">Pick Chubdoo or Chubson</div>
-  <div class="start-instructions-text">Then pick img for Bouncing Bruce, then pick a photo to reveal in background from your own camera roll.</div>
 </div>
 
 <div class="hundred-photo-modal" id="hundredPhotoModal" aria-live="polite">
@@ -493,7 +462,6 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const hudPanel = document.getElementById("hudPanel");
-const startInstructions = document.getElementById("startInstructions");
 const hundredPhotoModal = document.getElementById("hundredPhotoModal");
 const hundredPhotoTitle = document.getElementById("hundredPhotoTitle");
 const hundredPhotoText = document.getElementById("hundredPhotoText");
@@ -2171,9 +2139,6 @@ function updateStartButtonLabel() {
 function updateHudVisibility() {
   const showStartupControls = !gameStarted || !activeUserName;
   hudPanel.style.display = showStartupControls ? "block" : "none";
-  if (startInstructions) {
-    startInstructions.style.display = showStartupControls ? "block" : "none";
-  }
   if (!gameOver) {
     gameOverActions.style.display = "none";
   }
