@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V26</title>
+  <title>InventorPath Flappy Game V27</title>
   <style>
     html, body {
       width: 100%;
@@ -428,7 +428,7 @@
 <div class="hundred-photo-modal" id="hundredPhotoModal" aria-live="polite">
   <div class="hundred-photo-card">
     <div class="hundred-photo-title" id="hundredPhotoTitle">100 points!</div>
-    <div class="hundred-photo-text" id="hundredPhotoText">Pick a new picture to reveal in the background. Bruce will restart at the last column and receive 2 seconds of God Mode.</div>
+    <div class="hundred-photo-text" id="hundredPhotoText">Pick a new picture to reveal in the background. Bruce will stay in the same area and receive 2 seconds of God Mode.</div>
     <button class="hundred-photo-button" id="hundredPhotoPickButton" type="button">Pick New Picture</button>
     <input id="hundredImageUploadInput" type="file" accept="image/*" style="display:none;" aria-label="Choose new background photo">
   </div>
@@ -607,6 +607,7 @@ let backgroundSwapPending = false;
 let pendingHundredScore = 0;
 let nextPhotoMilestoneScore = 100;
 let pendingResumePipeSnapshot = null;
+let pendingResumeBirdSnapshot = null;
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -859,7 +860,7 @@ function renderPlayerButtons() {
 }
 
 function renderAuthStatus() {
-  // V25: phone photo picker, background reveal, and new-photo prompts every 100 points.
+  // V27: seamless 100-point photo swap with Bruce kept in place and 2 seconds of God Mode.
   authStatus.style.display = "none";
   authNote.style.display = "none";
   authUserRow.style.display = "none";
@@ -1501,7 +1502,7 @@ function showHundredPhotoPrompt() {
     hundredPhotoTitle.textContent = pendingHundredScore + " points!";
   }
   if (hundredPhotoText) {
-    hundredPhotoText.textContent = "Pick a new picture to reveal in the background. Bruce will restart at the last column and receive 2 seconds of God Mode.";
+    hundredPhotoText.textContent = "Pick a new picture to reveal in the background. Bruce will stay in the same area and receive 2 seconds of God Mode.";
   }
   if (hundredPhotoModal) {
     hundredPhotoModal.style.display = "flex";
@@ -1533,30 +1534,25 @@ function promptForNewPhotoAtHundred(pipe) {
     top: pipe.top,
     bottom: pipe.bottom
   } : null;
+  pendingResumeBirdSnapshot = {
+    x: bird.x,
+    y: bird.y,
+    velocity: bird.velocity
+  };
   showHundredPhotoPrompt();
 }
 
-function repositionPlayerAtHundredColumn() {
-  const safeX = Math.max(70, Math.min(100, gameWidth * 0.2));
-  bird.x = safeX;
-
-  const snapshot = pendingResumePipeSnapshot;
+function restorePlayerAtHundredPosition() {
+  const snapshot = pendingResumeBirdSnapshot;
   if (snapshot) {
-    const matchingPipe = pipes.find(pipe => pipe.id === snapshot.id);
-    if (matchingPipe) {
-      matchingPipe.x = bird.x + Math.round(clamp(34 * uiScale, 28, 46));
-      matchingPipe.width = snapshot.width;
-      matchingPipe.top = snapshot.top;
-      matchingPipe.bottom = snapshot.bottom;
-      matchingPipe.passed = true;
-      bird.y = clamp((matchingPipe.top + matchingPipe.bottom) * 0.5, bird.size + 4, gameHeight - bird.size - 4);
-    } else {
-      bird.y = clamp((snapshot.top + snapshot.bottom) * 0.5, bird.size + 4, gameHeight - bird.size - 4);
-    }
+    bird.x = clamp(snapshot.x, bird.size + 4, gameWidth - bird.size - 4);
+    bird.y = clamp(snapshot.y, bird.size + 4, gameHeight - bird.size - 4);
   } else {
-    bird.y = gameHeight / 2;
+    bird.x = Math.max(70, Math.min(100, gameWidth * 0.2));
+    bird.y = clamp(bird.y, bird.size + 4, gameHeight - bird.size - 4);
   }
 
+  // Start calmly after the photo picker closes; God Mode protects the player.
   bird.velocity = 0;
 }
 
@@ -1565,8 +1561,9 @@ function resumeAfterHundredPhotoChange() {
   pendingHundredScore = 0;
   hideHundredPhotoPrompt();
   resetImageRevealPuzzle();
-  repositionPlayerAtHundredColumn();
+  restorePlayerAtHundredPosition();
   pendingResumePipeSnapshot = null;
+  pendingResumeBirdSnapshot = null;
   invincibleUntil = Date.now() + GAME_CONFIG.godModeDurationMs;
   rememberRoundEffect("God Mode");
   gamePaused = false;
@@ -2192,6 +2189,7 @@ function resetRoundState() {
   pendingHundredScore = 0;
   nextPhotoMilestoneScore = 100;
   pendingResumePipeSnapshot = null;
+  pendingResumeBirdSnapshot = null;
   hideHundredPhotoPrompt();
   updatePauseButtonVisibility();
 }
