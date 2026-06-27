@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V28</title>
+  <title>InventorPath Flappy Game V29</title>
   <style>
     html, body {
       width: 100%;
@@ -276,18 +276,6 @@
     .asset-warning {
       display: none !important;
     }
-    .admin-panel {
-      display: none;
-      border-top: 1px solid #e2e8f0;
-      margin-top: 10px;
-      padding-top: 8px;
-    }
-    .admin-panel-title {
-      font-size: 12px;
-      font-weight: 800;
-      color: #7c2d12;
-      margin-bottom: 6px;
-    }
     .pause-button {
       position: fixed;
       right: calc(12px + env(safe-area-inset-right));
@@ -381,6 +369,22 @@
     .hundred-photo-button:active {
       transform: translateY(1px);
     }
+    .hundred-photo-secondary-button {
+      width: 100%;
+      border: 1px solid #94a3b8;
+      border-radius: 14px;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 900;
+      padding: 12px 14px;
+      cursor: pointer;
+      margin-top: 8px;
+      box-shadow: 0 6px 14px rgba(15, 23, 42, 0.12);
+    }
+    .hundred-photo-secondary-button:active {
+      transform: translateY(1px);
+    }
 
   </style>
 </head>
@@ -410,37 +414,6 @@
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
   </div>
   <div class="asset-warning" id="assetWarning"></div>
-
-  <!-- Hidden legacy auth elements kept only so older saved code paths stay safe. -->
-  <div id="legacyAuthControls" style="display:none;">
-    <div class="auth-status" id="authStatus"></div>
-    <div class="auth-note" id="authNote"></div>
-    <div class="hud-row" id="authUserRow">
-      <label for="playerNameInput">User</label>
-      <select id="playerNameInput">
-        <option value="Chubdoo">Chubdoo</option>
-        <option value="Chubson">Chubson</option>
-      </select>
-    </div>
-    <div class="hud-row" id="authPassRow">
-      <label for="passwordInput">Pass</label>
-      <input id="passwordInput" type="password" maxlength="30" placeholder="Password">
-    </div>
-    <div class="warning-note" id="passwordWarning"></div>
-    <button class="secondary-button" id="createAccountButton" type="button">Create New User</button>
-    <button class="secondary-button" id="loginButton" type="button">Log In</button>
-    <button class="secondary-button" id="logoutButton" type="button">Log Out</button>
-    <button class="secondary-button" id="downloadScoreFileButton" type="button">Download My Score File</button>
-  </div>
-
-  <div class="admin-panel" id="adminPanel">
-    <div class="admin-panel-title">Admin / Debug</div>
-    <button class="secondary-button" id="clearDailyScoresButton" type="button">Clear Daily Scores</button>
-    <button class="secondary-button" id="clearAllTimeScoresButton" type="button">Clear All-Time Scores</button>
-    <button class="secondary-button" id="clearAllUsersButton" type="button">Clear All Users</button>
-    <button class="secondary-button" id="clearSpriteChoicesButton" type="button">Clear Sprite Choices</button>
-    <button class="secondary-button" id="exportAllDataButton" type="button">Export All Game Data</button>
-  </div>
 </div>
 <div class="start-instructions" id="startInstructions">
   <div class="start-instructions-title">Please pick an image to reveal in background.</div>
@@ -452,6 +425,7 @@
     <div class="hundred-photo-title" id="hundredPhotoTitle">100 points!</div>
     <div class="hundred-photo-text" id="hundredPhotoText">Pick a new picture to reveal in the background. Bruce will restart in the center and receive 3 seconds of God Mode.</div>
     <button class="hundred-photo-button" id="hundredPhotoPickButton" type="button">Pick New Picture</button>
+    <button class="hundred-photo-secondary-button" id="hundredPhotoContinueButton" type="button">Continue With Same Picture</button>
     <input id="hundredImageUploadInput" type="file" accept="image/*" style="display:none;" aria-label="Choose new background photo">
   </div>
 </div>
@@ -471,11 +445,11 @@ const hundredPhotoModal = document.getElementById("hundredPhotoModal");
 const hundredPhotoTitle = document.getElementById("hundredPhotoTitle");
 const hundredPhotoText = document.getElementById("hundredPhotoText");
 const hundredPhotoPickButton = document.getElementById("hundredPhotoPickButton");
+const hundredPhotoContinueButton = document.getElementById("hundredPhotoContinueButton");
 const hundredImageUploadInput = document.getElementById("hundredImageUploadInput");
 const gameOverActions = document.getElementById("gameOverActions");
 const gameOverLogoutButton = document.getElementById("gameOverLogoutButton");
 const gameOverPlayAgainButton = document.getElementById("gameOverPlayAgainButton");
-const playerNameInput = document.getElementById("playerNameInput");
 const spritePickerRow = document.getElementById("spritePickerRow");
 const spritePicker = document.getElementById("spritePicker");
 const spriteHint = document.getElementById("spriteHint");
@@ -484,27 +458,11 @@ const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
 const imageUploadInput = document.getElementById("imageUploadInput");
 const imageUploadName = document.getElementById("imageUploadName");
-const passwordInput = document.getElementById("passwordInput");
-const authStatus = document.getElementById("authStatus");
-const authNote = document.getElementById("authNote");
-const authUserRow = document.getElementById("authUserRow");
-const authPassRow = document.getElementById("authPassRow");
-const createAccountButton = document.getElementById("createAccountButton");
-const loginButton = document.getElementById("loginButton");
-const logoutButton = document.getElementById("logoutButton");
-const downloadScoreFileButton = document.getElementById("downloadScoreFileButton");
-const passwordWarning = document.getElementById("passwordWarning");
 const chooseChubsonButton = document.getElementById("chooseChubsonButton");
 const chooseChubdooButton = document.getElementById("chooseChubdooButton");
 const selectedSpritePreview = document.getElementById("selectedSpritePreview");
 const selectedSpritePreviewImage = document.getElementById("selectedSpritePreviewImage");
 const assetWarning = document.getElementById("assetWarning");
-const adminPanel = document.getElementById("adminPanel");
-const clearDailyScoresButton = document.getElementById("clearDailyScoresButton");
-const clearAllTimeScoresButton = document.getElementById("clearAllTimeScoresButton");
-const clearAllUsersButton = document.getElementById("clearAllUsersButton");
-const clearSpriteChoicesButton = document.getElementById("clearSpriteChoicesButton");
-const exportAllDataButton = document.getElementById("exportAllDataButton");
 const pauseGameButton = document.getElementById("pauseGameButton");
 const ctGantryImage = new Image();
 
@@ -514,7 +472,7 @@ const PNG_DOG_SPRITES = AVAILABLE_DOG_SPRITES.filter(spriteName => spriteName.to
 
 // ── Game settings ───────────────────────────────────────────────────────────
 const GAME_CONFIG = {
-  dataVersion: 28,
+  dataVersion: 29,
   maxScoreHistoryEntries: 100,
   firstMysteryScore: 5,
   repeatMysteryStartScore: 10,
@@ -632,8 +590,6 @@ let revealCellOrder = [];
 let backgroundSwapPending = false;
 let pendingHundredScore = 0;
 let nextPhotoMilestoneScore = 100;
-let pendingResumePipeSnapshot = null;
-let pendingResumeBirdSnapshot = null;
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -773,71 +729,21 @@ function downloadJsonText(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-function isAdminUser() {
-  const account = userAccounts[getUserKey(playerName)];
-  return Boolean(activeUserName && getUserKey(playerName) === "admin" && account && account.password === "Admin");
-}
 
-function renderAdminPanel() {
-  adminPanel.style.display = isAdminUser() ? "block" : "none";
-}
 
-function resetScoreUiAfterAdminChange() {
-  initializeDataVersionAndMigrations();
-scoreHistory = loadScoreHistory();
-  renderScoreHistory();
-  applyCurrentPlayerSprite();
-  draw();
-}
 
-function clearDailyScoresAdmin() {
-  if (!isAdminUser() || !window.confirm("Clear daily/current scores and daily stats?")) return;
-  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
-  localStorage.setItem(DAILY_STATS_KEY, JSON.stringify({}));
-  resetScoreUiAfterAdminChange();
-}
 
-function clearAllTimeScoresAdmin() {
-  if (!isAdminUser() || !window.confirm("Clear all-time global and per-user top scores?")) return;
-  localStorage.setItem(TOP3_FOREVER_KEY, JSON.stringify([]));
-  localStorage.setItem(PER_USER_TOP3_FOREVER_KEY, JSON.stringify({}));
-  localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
-  localStorage.removeItem(TOTAL_POINTS_BY_USER_KEY);
-  getLocalStorageKeys(SCORE_FILE_PREFIX).forEach(key => localStorage.removeItem(key));
-  resetScoreUiAfterAdminChange();
-}
 
-function clearAllUsersAdmin() {
-  if (!isAdminUser() || !window.confirm("Clear all users, logout, and remove user score files?")) return;
-  getLocalStorageKeys(SCORE_FILE_PREFIX).forEach(key => localStorage.removeItem(key));
-  localStorage.setItem(USER_ACCOUNTS_KEY, JSON.stringify({}));
-  localStorage.removeItem(TOTAL_POINTS_BY_USER_KEY);
-  localStorage.removeItem(ACTIVE_USER_KEY);
-  userAccounts = {};
-  logoutAccount();
-}
 
-function clearSpriteChoicesAdmin() {
-  if (!isAdminUser() || !window.confirm("Clear saved sprite choices?")) return;
-  spriteChoicesByUser = {};
-  saveSpriteChoices();
-  applyCurrentPlayerSprite();
-}
 
-function exportAllGameDataAdmin() {
-  if (!isAdminUser()) return;
-  const exported = {};
-  getLocalStorageKeys("inventorpath_")
-    .sort()
-    .forEach(key => {
-      try {
-        exported[key] = JSON.parse(localStorage.getItem(key));
-      } catch {
-        exported[key] = localStorage.getItem(key);
-      }
-    });
-  downloadJsonText(JSON.stringify(exported, null, 2), "inventorpath_all_game_data.json");
-}
+
+
+
+
+
+
+
+
 
 function initializeDataVersionAndMigrations() {
   const currentVersion = GAME_CONFIG.dataVersion;
@@ -886,17 +792,7 @@ function renderPlayerButtons() {
 }
 
 function renderAuthStatus() {
-  // V28: mystery boxes every 5 points, gaps 8% smaller, Slow/Fast labels, and 3-second image-pick God Mode.
-  authStatus.style.display = "none";
-  authNote.style.display = "none";
-  authUserRow.style.display = "none";
-  authPassRow.style.display = "none";
-  passwordWarning.style.display = "none";
-  loginButton.style.display = "none";
-  createAccountButton.style.display = "none";
-  logoutButton.style.display = "none";
-  downloadScoreFileButton.style.display = "none";
-
+  // V29: no password/login window. Players choose Chubdoo or Chubson directly.
   if (!activeUserName) {
     activeUserName = "Chubdoo";
     playerName = "Chubdoo";
@@ -906,7 +802,6 @@ function renderAuthStatus() {
   startGameButton.disabled = false;
   startGameButton.style.opacity = "1";
   renderPlayerButtons();
-  renderAdminPanel();
   updatePauseButtonVisibility();
 }
 
@@ -926,9 +821,6 @@ function selectFixedPlayer(name) {
   activeUserName = account.userName;
   playerName = account.userName;
   localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
-  playerNameInput.value = playerName;
-  passwordInput.value = "";
-
   gameStarted = false;
   gameOver = false;
   gamePaused = false;
@@ -941,39 +833,12 @@ function selectFixedPlayer(name) {
   draw();
 }
 
-function createAccount() {
-  alert("New users are locked. Choose Chubdoo or Chubson and use the password.");
-}
 
 
 
 
-function loginAccount() {
-  const name = sanitizeUsername(playerNameInput.value);
-  const password = passwordInput.value;
-  const userKey = getUserKey(name);
-  const account = userAccounts[userKey];
 
-  if (!isAllowedPlayerName(name)) {
-    alert("Choose Chubdoo or Chubson.");
-    return;
-  }
 
-  if (!account || password !== FIXED_LOGIN_PASSWORD) {
-    alert("Incorrect password. The password is password.");
-    return;
-  }
-
-  activeUserName = account.userName;
-  playerName = account.userName;
-  localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
-  playerNameInput.value = playerName;
-  passwordInput.value = "";
-  renderScoreHistory();
-  renderAuthStatus();
-  applyCurrentPlayerSprite();
-  updateHudVisibility();
-}
 
 
 function logoutAccount() {
@@ -988,8 +853,6 @@ function logoutAccount() {
     localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
   }
 
-  playerNameInput.value = playerName;
-  passwordInput.value = "";
   renderScoreHistory();
   renderAuthStatus();
   applyCurrentPlayerSprite();
@@ -1315,8 +1178,13 @@ function resetImageRevealPuzzle() {
 }
 
 function clearRevealImageSelection() {
+  if (revealImageObjectUrl) {
+    URL.revokeObjectURL(revealImageObjectUrl);
+  }
+  revealImage = new Image();
   revealImageReady = false;
   revealImageName = "";
+  revealImageObjectUrl = "";
   revealCellOrder = [];
   if (imageUploadName) {
     imageUploadName.style.display = "none";
@@ -1330,38 +1198,56 @@ function loadRevealImageFile(file, afterLoad) {
     return;
   }
 
-  if (revealImageObjectUrl) {
-    URL.revokeObjectURL(revealImageObjectUrl);
-  }
+  const previousImage = revealImage;
+  const previousReady = revealImageReady;
+  const previousName = revealImageName;
+  const previousObjectUrl = revealImageObjectUrl;
+  const nextObjectUrl = URL.createObjectURL(file);
+  const nextImage = new Image();
+  const nextName = file.name || "img-1";
 
-  revealImageReady = false;
-  revealImageName = file.name || "img-1";
-  revealImageObjectUrl = URL.createObjectURL(file);
-  revealImage = new Image();
-  revealImage.onload = () => {
+  nextImage.onload = () => {
+    if (previousObjectUrl && previousObjectUrl !== nextObjectUrl) {
+      URL.revokeObjectURL(previousObjectUrl);
+    }
+
+    revealImage = nextImage;
+    revealImageObjectUrl = nextObjectUrl;
+    revealImageName = nextName;
     revealImageReady = true;
     resetImageRevealPuzzle();
+
     if (imageUploadName) {
       imageUploadName.style.display = "block";
       imageUploadName.textContent = "Photo loaded: " + revealImageName;
     }
+
     if (typeof afterLoad === "function") {
       afterLoad();
     } else {
       draw();
     }
   };
-  revealImage.onerror = () => {
-    revealImageReady = false;
-    revealCellOrder = [];
+
+  nextImage.onerror = () => {
+    URL.revokeObjectURL(nextObjectUrl);
+    revealImage = previousImage;
+    revealImageReady = previousReady;
+    revealImageName = previousName;
+    revealImageObjectUrl = previousObjectUrl;
+
     if (imageUploadName) {
       imageUploadName.style.display = "block";
-      imageUploadName.textContent = "Could not load photo. Pick a different image.";
+      imageUploadName.textContent = previousReady
+        ? "Could not load new photo. Keeping current photo."
+        : "Could not load photo. Pick a different image.";
     }
-    alert("Could not load photo. Pick a different image.");
+
+    alert(previousReady ? "Could not load new photo. Keeping current photo." : "Could not load photo. Pick a different image.");
     draw();
   };
-  revealImage.src = revealImageObjectUrl;
+
+  nextImage.src = nextObjectUrl;
 }
 
 function handleImageUpload(event) {
@@ -1571,18 +1457,6 @@ function promptForNewPhotoAtHundred(pipe) {
   backgroundSwapPending = true;
   gamePaused = true;
   bird.velocity = 0;
-  pendingResumePipeSnapshot = pipe ? {
-    id: pipe.id,
-    x: pipe.x,
-    width: pipe.width,
-    top: pipe.top,
-    bottom: pipe.bottom
-  } : null;
-  pendingResumeBirdSnapshot = {
-    x: bird.x,
-    y: bird.y,
-    velocity: bird.velocity
-  };
   showHundredPhotoPrompt();
 }
 
@@ -1602,14 +1476,19 @@ function restorePlayerAtHundredPosition() {
   placeBruceAtCenterForImageReveal();
 }
 
+function continueWithSamePictureAfterHundred() {
+  if (!backgroundSwapPending || !revealImageReady) {
+    return;
+  }
+  resumeAfterHundredPhotoChange();
+}
+
 function resumeAfterHundredPhotoChange() {
   backgroundSwapPending = false;
   pendingHundredScore = 0;
   hideHundredPhotoPrompt();
   resetImageRevealPuzzle();
   restorePlayerAtHundredPosition();
-  pendingResumePipeSnapshot = null;
-  pendingResumeBirdSnapshot = null;
   activateImagePickGodMode();
   gamePaused = false;
   updatePauseButtonVisibility();
@@ -2233,8 +2112,6 @@ function resetRoundState() {
   backgroundSwapPending = false;
   pendingHundredScore = 0;
   nextPhotoMilestoneScore = 100;
-  pendingResumePipeSnapshot = null;
-  pendingResumeBirdSnapshot = null;
   hideHundredPhotoPrompt();
   updatePauseButtonVisibility();
 }
@@ -2281,7 +2158,6 @@ function applyPlayerNameFromInput() {
   }
 
   playerName = activeUserName;
-  playerNameInput.value = playerName;
   renderScoreHistory();
   renderAuthStatus();
   applyCurrentPlayerSprite();
@@ -2331,33 +2207,9 @@ function setGameOver() {
 
 
 
-playerNameInput.value = activeUserName ? playerName : "Chubdoo";
-playerNameInput.addEventListener("keydown", event => {
-  if (event.key === "Enter") {
-    passwordInput.focus();
-  }
-});
-passwordInput.addEventListener("keydown", event => {
-  if (event.key === "Enter") {
-    if (activeUserName) {
-      startGame();
-    } else {
-      loginAccount();
-    }
-  }
-});
 chooseChubsonButton.addEventListener("click", () => selectFixedPlayer("Chubson"));
 chooseChubdooButton.addEventListener("click", () => selectFixedPlayer("Chubdoo"));
-createAccountButton.addEventListener("click", createAccount);
-loginButton.addEventListener("click", loginAccount);
-logoutButton.addEventListener("click", logoutAccount);
-downloadScoreFileButton.addEventListener("click", downloadCurrentUserScoreFile);
 pauseGameButton.addEventListener("click", togglePause);
-clearDailyScoresButton.addEventListener("click", clearDailyScoresAdmin);
-clearAllTimeScoresButton.addEventListener("click", clearAllTimeScoresAdmin);
-clearAllUsersButton.addEventListener("click", clearAllUsersAdmin);
-clearSpriteChoicesButton.addEventListener("click", clearSpriteChoicesAdmin);
-exportAllDataButton.addEventListener("click", exportAllGameDataAdmin);
 gameOverLogoutButton.addEventListener("click", logoutAccount);
 gameOverPlayAgainButton.addEventListener("click", startGame);
 imageUploadInput.addEventListener("change", handleImageUpload);
@@ -2367,6 +2219,7 @@ hundredPhotoPickButton.addEventListener("click", () => {
   }
 });
 hundredImageUploadInput.addEventListener("change", handleHundredImageUpload);
+hundredPhotoContinueButton.addEventListener("click", continueWithSamePictureAfterHundred);
 spritePicker.addEventListener("change", () => {
   if (!activeUserName) {
     return;
