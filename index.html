@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V15</title>
+  <title>InventorPath Flappy Game V17</title>
   <style>
     html, body {
       width: 100%;
@@ -27,15 +27,16 @@
     }
     .hud-panel {
       position: fixed;
-      top: 12px;
-      left: 12px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       z-index: 10;
-      width: min(88vw, 340px);
-      background: rgba(255, 255, 255, 0.9);
-      border: 1px solid rgba(0, 0, 0, 0.12);
-      border-radius: 12px;
-      padding: 10px;
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+      width: min(90vw, 360px);
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      padding: 0;
+      box-shadow: none;
       touch-action: auto;
       pointer-events: auto;
     }
@@ -44,6 +45,12 @@
       gap: 8px;
       align-items: center;
       margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      border-radius: 14px;
+      padding: 8px 10px;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
+      backdrop-filter: blur(4px);
     }
     .hud-row label {
       font-size: 13px;
@@ -79,29 +86,11 @@
       box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.2);
     }
     .sprite-hint {
-      margin-top: -2px;
-      margin-bottom: 8px;
-      color: #475569;
-      font-size: 11px;
-      line-height: 1.2;
+      display: none !important;
     }
-    .score-list-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: #334155;
-      margin-bottom: 6px;
-    }
+    .score-list-title,
     .score-list {
-      margin: 0;
-      padding-left: 18px;
-      max-height: min(35vh, 260px);
-      overflow-y: auto;
-      color: #111827;
-      font-size: 12px;
-    }
-    .score-list li {
-      margin: 0 0 4px;
-      line-height: 1.25;
+      display: none !important;
     }
     .hud-actions {
       margin-top: 10px;
@@ -109,13 +98,14 @@
     .start-button {
       width: 100%;
       border: 0;
-      border-radius: 10px;
+      border-radius: 14px;
       background: #0284c7;
       color: #ffffff;
-      font-size: 14px;
-      font-weight: 700;
-      padding: 10px 12px;
+      font-size: 16px;
+      font-weight: 900;
+      padding: 13px 14px;
       cursor: pointer;
+      box-shadow: 0 8px 18px rgba(2, 132, 199, 0.22);
     }
     .start-button:active {
       transform: translateY(1px);
@@ -136,28 +126,25 @@
       transform: translateY(1px);
     }
     .player-select-title {
-      font-size: 14px;
-      font-weight: 800;
-      color: #0f172a;
-      margin-bottom: 8px;
-      text-align: center;
+      display: none !important;
     }
     .player-button-row {
       display: flex;
-      gap: 8px;
+      gap: 10px;
       margin-bottom: 10px;
     }
     .player-choice-button {
       flex: 1;
-      border: 1px solid #94a3b8;
-      border-radius: 12px;
-      background: #ffffff;
+      border: 1px solid rgba(15, 23, 42, 0.24);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.9);
       color: #0f172a;
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 900;
-      padding: 12px 10px;
+      padding: 13px 10px;
       cursor: pointer;
-      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(4px);
     }
     .player-choice-button.selected {
       border-color: #0284c7;
@@ -194,15 +181,7 @@
       margin-bottom: 8px;
     }
     .asset-warning {
-      display: none;
-      color: #991b1b;
-      background: #fee2e2;
-      border: 1px solid #fca5a5;
-      border-radius: 8px;
-      padding: 7px 9px;
-      font-size: 11px;
-      line-height: 1.25;
-      margin-bottom: 8px;
+      display: none !important;
     }
     .admin-panel {
       display: none;
@@ -263,7 +242,7 @@
 </head>
 <body>
 <div class="hud-panel" id="hudPanel">
-  <div class="player-select-title">Landing Player</div>
+  <div class="player-select-title">Choose Player</div>
   <div class="player-button-row" id="playerButtonRow">
     <button class="player-choice-button" id="chooseChubdooButton" type="button">Chubdoo</button>
     <button class="player-choice-button" id="chooseChubsonButton" type="button">Chubson</button>
@@ -272,8 +251,8 @@
     <label for="spritePicker">Bruce</label>
     <select id="spritePicker"></select>
   </div>
-  <div class="sprite-hint" id="spriteHint">Choose your bouncing Bruce.</div>
-  <div class="score-list-title" id="scoreListTitle">Recent scores</div>
+  <div class="sprite-hint" id="spriteHint"></div>
+  <div class="score-list-title" id="scoreListTitle"></div>
   <ol class="score-list" id="scoreList"></ol>
   <div class="hud-actions">
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
@@ -720,7 +699,7 @@ function renderPlayerButtons() {
 }
 
 function renderAuthStatus() {
-  // V15: no login/password window. Players switch with the two name buttons.
+  // V17: flat start controls. Players switch with the two name buttons.
   authStatus.style.display = "none";
   authNote.style.display = "none";
   authUserRow.style.display = "none";
@@ -1645,50 +1624,12 @@ function maybeResetScoresNightly() {
 }
 
 function renderScoreHistory() {
-  scoreList.innerHTML = "";
-
-  if (!activeUserName) {
-    scoreListTitle.textContent = "Player login required";
-    const emptyItem = document.createElement("li");
-    emptyItem.textContent = "Create a user or log in to save scores.";
-    scoreList.appendChild(emptyItem);
-    return;
-  }
-
-  scoreListTitle.textContent = "Top 3 scores for " + playerName;
-  const playerScores = getTopThreeScoresForUser(playerName);
-
-  if (playerScores.length === 0) {
-    const emptyItem = document.createElement("li");
-    emptyItem.textContent = "No games yet for this player";
-    scoreList.appendChild(emptyItem);
-  } else {
-    playerScores.forEach((entry, index) => {
-      const item = document.createElement("li");
-      item.textContent = "#" + (index + 1) + " - " + entry.score + " points - " + formatPlayedAt(entry.playedAt);
-      scoreList.appendChild(item);
-    });
-  }
-
-  // Today's daily activity stats
-  const todayStats = getTodayStatsForPlayer(playerName);
-  if (todayStats && todayStats.gamesPlayed > 0) {
-    const sep = document.createElement("li");
-    sep.style.cssText = "list-style:none;margin-top:6px;padding-top:6px;border-top:1px solid #e2e8f0;color:#334155;font-weight:700;font-size:11px;";
-    sep.textContent = "Today \u2014 " + getDayString();
-    scoreList.appendChild(sep);
-
-    const mean = (todayStats.totalScore / todayStats.gamesPlayed).toFixed(1);
-    const statsItem = document.createElement("li");
-    statsItem.style.cssText = "list-style:none;font-size:11px;color:#475569;line-height:1.6;";
-    statsItem.innerHTML =
-      "Games: <b>" + todayStats.gamesPlayed + "</b>" +
-      " &nbsp;|&nbsp; Best: <b>" + todayStats.highScore + "</b>" +
-      " &nbsp;|&nbsp; Avg: <b>" + mean + "</b>";
-    scoreList.appendChild(statsItem);
-  }
-
+  // V17: no visible statistics on the start screen.
+  // Scores are still saved for the Game Over pie chart and score files.
+  if (scoreList) scoreList.innerHTML = "";
+  if (scoreListTitle) scoreListTitle.textContent = "";
   applyCurrentPlayerSprite();
+  renderPlayerButtons();
 }
 
 function updateStartButtonLabel() {
