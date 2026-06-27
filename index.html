@@ -1488,12 +1488,16 @@ function hideHundredPhotoPrompt() {
 }
 
 function promptForNewPhotoAtHundred(pipe) {
-  if (backgroundSwapPending || score <= 0 || score !== nextPhotoMilestoneScore) {
+  // Trigger at every 100-point milestone. Use >= instead of === so the
+  // prompt cannot be missed if more than one pipe is passed in a fast frame.
+  if (backgroundSwapPending || score <= 0 || score < nextPhotoMilestoneScore) {
     return;
   }
 
-  pendingHundredScore = score;
-  nextPhotoMilestoneScore += 100;
+  pendingHundredScore = nextPhotoMilestoneScore;
+  while (nextPhotoMilestoneScore <= score) {
+    nextPhotoMilestoneScore += 100;
+  }
   backgroundSwapPending = true;
   gamePaused = true;
   bird.velocity = 0;
