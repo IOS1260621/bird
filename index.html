@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V19</title>
+  <title>InventorPath Flappy Game V21</title>
   <style>
     html, body {
       width: 100%;
@@ -170,6 +170,34 @@
     }
     .secondary-button:active {
       transform: translateY(1px);
+    }
+    .start-instructions {
+      position: fixed;
+      left: 50%;
+      bottom: max(14px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      z-index: 11;
+      width: min(92vw, 420px);
+      color: #0f172a;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      border-radius: 16px;
+      padding: 12px 14px;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(4px);
+      text-align: center;
+      line-height: 1.35;
+      pointer-events: none;
+    }
+    .start-instructions-title {
+      font-size: 15px;
+      font-weight: 900;
+      margin-bottom: 6px;
+    }
+    .start-instructions-text {
+      font-size: 12px;
+      font-weight: 700;
+      color: #334155;
     }
     .player-select-title {
       display: none !important;
@@ -341,6 +369,10 @@
     <button class="secondary-button" id="exportAllDataButton" type="button">Export All Game Data</button>
   </div>
 </div>
+<div class="start-instructions" id="startInstructions">
+  <div class="start-instructions-title">Please pick an image to reveal in background.</div>
+  <div class="start-instructions-text">Goal: bounce Bruce through the gaps. Mystery boxes appear throughout the game and temporarily affect gameplay.</div>
+</div>
 <div class="game-over-actions" id="gameOverActions">
   <button class="logout-gameover-button" id="gameOverLogoutButton" type="button">Choose Player</button>
   <button class="play-again-button" id="gameOverPlayAgainButton" type="button">Play Again</button>
@@ -352,6 +384,7 @@
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const hudPanel = document.getElementById("hudPanel");
+const startInstructions = document.getElementById("startInstructions");
 const gameOverActions = document.getElementById("gameOverActions");
 const gameOverLogoutButton = document.getElementById("gameOverLogoutButton");
 const gameOverPlayAgainButton = document.getElementById("gameOverPlayAgainButton");
@@ -757,7 +790,7 @@ function renderPlayerButtons() {
 }
 
 function renderAuthStatus() {
-  // V19: phone photo picker plus 10x10 background reveal.
+  // V20: phone photo picker, start instructions, and bold red Effect value.
   authStatus.style.display = "none";
   authNote.style.display = "none";
   authUserRow.style.display = "none";
@@ -1911,7 +1944,11 @@ function updateStartButtonLabel() {
 }
 
 function updateHudVisibility() {
-  hudPanel.style.display = !gameStarted || !activeUserName ? "block" : "none";
+  const showStartupControls = !gameStarted || !activeUserName;
+  hudPanel.style.display = showStartupControls ? "block" : "none";
+  if (startInstructions) {
+    startInstructions.style.display = showStartupControls ? "block" : "none";
+  }
   if (!gameOver) {
     gameOverActions.style.display = "none";
   }
@@ -2619,7 +2656,13 @@ function draw() {
   const effectFont = Math.round(clamp(16 * uiScale, 13, 20));
   const effectY = hudY + Math.round(clamp(24 * uiScale, 20, 30));
   ctx.font = "700 " + effectFont + "px Arial";
-  ctx.fillText("Effect: " + getActiveEffectLabel(), hudX, effectY);
+  ctx.fillStyle = "#111827";
+  const effectLabel = "Effect: ";
+  ctx.fillText(effectLabel, hudX, effectY);
+
+  ctx.font = "900 " + effectFont + "px Arial";
+  ctx.fillStyle = "#dc2626";
+  ctx.fillText(getActiveEffectLabel(), hudX + ctx.measureText(effectLabel).width, effectY);
 
   if (gamePaused && !gameOver) {
     drawPausedOverlay();
