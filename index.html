@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>InventorPath Flappy Game V14</title>
+  <title>InventorPath Flappy Game V15</title>
   <style>
     html, body {
       width: 100%;
@@ -135,6 +135,39 @@
     .secondary-button:active {
       transform: translateY(1px);
     }
+    .player-select-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+      margin-bottom: 8px;
+      text-align: center;
+    }
+    .player-button-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .player-choice-button {
+      flex: 1;
+      border: 1px solid #94a3b8;
+      border-radius: 12px;
+      background: #ffffff;
+      color: #0f172a;
+      font-size: 15px;
+      font-weight: 900;
+      padding: 12px 10px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    }
+    .player-choice-button.selected {
+      border-color: #0284c7;
+      background: #0284c7;
+      color: #ffffff;
+      box-shadow: 0 8px 18px rgba(2, 132, 199, 0.22);
+    }
+    .player-choice-button:active {
+      transform: translateY(1px);
+    }
     .auth-status {
       font-size: 12px;
       font-weight: 700;
@@ -230,33 +263,45 @@
 </head>
 <body>
 <div class="hud-panel" id="hudPanel">
-  <div class="auth-status" id="authStatus">Choose a player to start.</div>
-  <div class="auth-note" id="authNote"></div>
-  <div class="hud-row" id="authUserRow">
-    <label for="playerNameInput">Player</label>
-    <select id="playerNameInput">
-      <option value="Chubdoo">Chubdoo</option>
-      <option value="Chubson">Chubson</option>
-    </select>
+  <div class="player-select-title">Choose Player</div>
+  <div class="player-button-row" id="playerButtonRow">
+    <button class="player-choice-button" id="chooseChubsonButton" type="button">Chubson</button>
+    <button class="player-choice-button" id="chooseChubdooButton" type="button">Chubdoo</button>
   </div>
-  <div class="warning-note" id="passwordWarning" style="display:none;"></div>
-  <div class="asset-warning" id="assetWarning"></div>
-  <div class="hud-actions">
-    <button class="secondary-button" id="createAccountButton" type="button" style="display:none;">Create New User</button>
-    <button class="secondary-button" id="loginButton" type="button">Play as Selected Player</button>
-    <button class="secondary-button" id="logoutButton" type="button" style="display:none;">Log Out</button>
-    <button class="secondary-button" id="downloadScoreFileButton" type="button" style="display:none;">Download My Score File</button>
-  </div>
-  <div class="hud-row" id="spritePickerRow" style="display:none;">
+  <div class="hud-row" id="spritePickerRow">
     <label for="spritePicker">Bruce</label>
     <select id="spritePicker"></select>
   </div>
-  <div class="sprite-hint" id="spriteHint" style="display:none;">Choose any PNG avatar. dog.svg unlocks for top scorer.</div>
+  <div class="sprite-hint" id="spriteHint">Choose your bouncing Bruce.</div>
   <div class="score-list-title" id="scoreListTitle">Recent scores</div>
   <ol class="score-list" id="scoreList"></ol>
   <div class="hud-actions">
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
   </div>
+  <div class="asset-warning" id="assetWarning"></div>
+
+  <!-- Hidden legacy auth elements kept only so older saved code paths stay safe. -->
+  <div id="legacyAuthControls" style="display:none;">
+    <div class="auth-status" id="authStatus"></div>
+    <div class="auth-note" id="authNote"></div>
+    <div class="hud-row" id="authUserRow">
+      <label for="playerNameInput">User</label>
+      <select id="playerNameInput">
+        <option value="Chubdoo">Chubdoo</option>
+        <option value="Chubson">Chubson</option>
+      </select>
+    </div>
+    <div class="hud-row" id="authPassRow">
+      <label for="passwordInput">Pass</label>
+      <input id="passwordInput" type="password" maxlength="30" placeholder="Password">
+    </div>
+    <div class="warning-note" id="passwordWarning"></div>
+    <button class="secondary-button" id="createAccountButton" type="button">Create New User</button>
+    <button class="secondary-button" id="loginButton" type="button">Log In</button>
+    <button class="secondary-button" id="logoutButton" type="button">Log Out</button>
+    <button class="secondary-button" id="downloadScoreFileButton" type="button">Download My Score File</button>
+  </div>
+
   <div class="admin-panel" id="adminPanel">
     <div class="admin-panel-title">Admin / Debug</div>
     <button class="secondary-button" id="clearDailyScoresButton" type="button">Clear Daily Scores</button>
@@ -267,7 +312,7 @@
   </div>
 </div>
 <div class="game-over-actions" id="gameOverActions">
-  <button class="logout-gameover-button" id="gameOverLogoutButton" type="button">Log Out</button>
+  <button class="logout-gameover-button" id="gameOverLogoutButton" type="button">Choose Player</button>
   <button class="play-again-button" id="gameOverPlayAgainButton" type="button">Play Again</button>
 </div>
 <button class="pause-button" id="pauseGameButton" type="button">Pause</button>
@@ -287,13 +332,18 @@ const spriteHint = document.getElementById("spriteHint");
 const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
+const passwordInput = document.getElementById("passwordInput");
 const authStatus = document.getElementById("authStatus");
 const authNote = document.getElementById("authNote");
 const authUserRow = document.getElementById("authUserRow");
+const authPassRow = document.getElementById("authPassRow");
 const createAccountButton = document.getElementById("createAccountButton");
 const loginButton = document.getElementById("loginButton");
 const logoutButton = document.getElementById("logoutButton");
 const downloadScoreFileButton = document.getElementById("downloadScoreFileButton");
+const passwordWarning = document.getElementById("passwordWarning");
+const chooseChubsonButton = document.getElementById("chooseChubsonButton");
+const chooseChubdooButton = document.getElementById("chooseChubdooButton");
 const assetWarning = document.getElementById("assetWarning");
 const adminPanel = document.getElementById("adminPanel");
 const clearDailyScoresButton = document.getElementById("clearDailyScoresButton");
@@ -462,7 +512,7 @@ function getFixedUserAccounts() {
 
 // ── Storage / accounts ─────────────────────────────────────────────────────
 function loadUserAccounts() {
-  // V13: only two built-in player accounts are allowed.
+  // V15: only two built-in player accounts are allowed; no password window is shown.
   // Old browser-saved users are ignored so random usernames cannot log in.
   return getFixedUserAccounts();
 }
@@ -659,48 +709,51 @@ function saveScoreToServer(entry) {
   // Example later: return fetch("/api/scores", { method: "POST", body: JSON.stringify(entry) });
 }
 
-function renderAuthStatus() {
-  if (activeUserName) {
-    authStatus.textContent = "Playing as " + playerName;
-    authNote.style.display = "none";
-    authUserRow.style.display = "none";
-    loginButton.style.display = "none";
-    createAccountButton.style.display = "none";
-    logoutButton.style.display = "block";
-    downloadScoreFileButton.style.display = "block";
-    startGameButton.disabled = false;
-    startGameButton.style.opacity = "1";
-  } else {
-    authStatus.textContent = "Choose a player to start.";
-    authNote.style.display = "none";
-    authUserRow.style.display = "flex";
-    loginButton.style.display = "block";
-    createAccountButton.style.display = "none";
-    logoutButton.style.display = "none";
-    downloadScoreFileButton.style.display = "none";
-    startGameButton.disabled = true;
-    startGameButton.style.opacity = "0.55";
-    if (!isAllowedPlayerName(playerNameInput.value)) {
-      playerNameInput.value = "Chubdoo";
-    }
+function renderPlayerButtons() {
+  const selectedKey = getUserKey(playerName);
+  if (chooseChubsonButton) {
+    chooseChubsonButton.classList.toggle("selected", selectedKey === "chubson");
   }
+  if (chooseChubdooButton) {
+    chooseChubdooButton.classList.toggle("selected", selectedKey === "chubdoo");
+  }
+}
+
+function renderAuthStatus() {
+  // V15: no login/password window. Players switch with the two name buttons.
+  authStatus.style.display = "none";
+  authNote.style.display = "none";
+  authUserRow.style.display = "none";
+  authPassRow.style.display = "none";
+  passwordWarning.style.display = "none";
+  loginButton.style.display = "none";
+  createAccountButton.style.display = "none";
+  logoutButton.style.display = "none";
+  downloadScoreFileButton.style.display = "none";
+
+  if (!activeUserName) {
+    activeUserName = "Chubdoo";
+    playerName = "Chubdoo";
+    localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
+  }
+
+  startGameButton.disabled = false;
+  startGameButton.style.opacity = "1";
+  renderPlayerButtons();
   renderAdminPanel();
   updatePauseButtonVisibility();
 }
 
-
-
-function createAccount() {
-  // No-op: accounts are fixed to Chubdoo and Chubson.
-}
-
-function loginAccount() {
-  const name = sanitizeUsername(playerNameInput.value);
+function selectFixedPlayer(name) {
   const userKey = getUserKey(name);
-  const account = userAccounts[userKey];
+  const account = userAccounts[userKey] || FIXED_USER_ACCOUNTS[userKey];
 
-  if (!isAllowedPlayerName(name) || !account) {
-    alert("Choose Chubdoo or Chubson.");
+  if (!account || !isAllowedPlayerName(account.userName)) {
+    return;
+  }
+
+  // Do not switch players in the middle of an active round.
+  if (gameStarted && !gameOver) {
     return;
   }
 
@@ -708,21 +761,72 @@ function loginAccount() {
   playerName = account.userName;
   localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
   playerNameInput.value = playerName;
+  passwordInput.value = "";
+
+  gameStarted = false;
+  gameOver = false;
+  gamePaused = false;
+
+  renderScoreHistory();
+  renderAuthStatus();
+  applyCurrentPlayerSprite();
+  updateStartButtonLabel();
+  updateHudVisibility();
+  draw();
+}
+
+function createAccount() {
+  alert("New users are locked. Choose Chubdoo or Chubson and use the password.");
+}
+
+
+
+
+function loginAccount() {
+  const name = sanitizeUsername(playerNameInput.value);
+  const password = passwordInput.value;
+  const userKey = getUserKey(name);
+  const account = userAccounts[userKey];
+
+  if (!isAllowedPlayerName(name)) {
+    alert("Choose Chubdoo or Chubson.");
+    return;
+  }
+
+  if (!account || password !== FIXED_LOGIN_PASSWORD) {
+    alert("Incorrect password. The password is password.");
+    return;
+  }
+
+  activeUserName = account.userName;
+  playerName = account.userName;
+  localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
+  playerNameInput.value = playerName;
+  passwordInput.value = "";
   renderScoreHistory();
   renderAuthStatus();
   applyCurrentPlayerSprite();
   updateHudVisibility();
 }
 
+
 function logoutAccount() {
-  activeUserName = "";
-  playerName = "Player";
-  localStorage.removeItem(ACTIVE_USER_KEY);
-  playerNameInput.value = "Chubdoo";
+  // V15: this button now returns to the player-choice menu instead of logging out.
   gameStarted = false;
   gameOver = false;
+  gamePaused = false;
+
+  if (!activeUserName || !isAllowedPlayerName(activeUserName)) {
+    activeUserName = "Chubdoo";
+    playerName = "Chubdoo";
+    localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
+  }
+
+  playerNameInput.value = playerName;
+  passwordInput.value = "";
   renderScoreHistory();
   renderAuthStatus();
+  applyCurrentPlayerSprite();
   updateStartButtonLabel();
   updateHudVisibility();
 }
@@ -743,15 +847,19 @@ function loadSpriteChoices() {
 
 let userAccounts = loadUserAccounts();
 let activeUserName = sanitizeUsername(localStorage.getItem(ACTIVE_USER_KEY) || "");
-if (activeUserName && !userAccounts[getUserKey(activeUserName)]) {
+if (activeUserName && !isAllowedPlayerName(activeUserName)) {
   activeUserName = "";
   localStorage.removeItem(ACTIVE_USER_KEY);
 }
+if (!activeUserName) {
+  activeUserName = "Chubdoo";
+  localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
+}
 if (activeUserName) {
-  activeUserName = userAccounts[getUserKey(activeUserName)].userName;
+  activeUserName = (userAccounts[getUserKey(activeUserName)] || FIXED_USER_ACCOUNTS.chubdoo).userName;
 }
 
-let playerName = activeUserName || "Player";
+let playerName = activeUserName || "Chubdoo";
 let scoreHistory = [];
 let spriteChoicesByUser = loadSpriteChoices();
 
@@ -1662,7 +1770,7 @@ function grantTopScorerStartingGodMode() {
 function startGame() {
   applyPlayerNameFromInput();
   if (!activeUserName) {
-    alert("Create a user or log in before starting the game.");
+    alert("Choose Chubson or Chubdoo before starting the game.");
     return;
   }
   resetRoundState();
@@ -1736,6 +1844,22 @@ function setGameOver() {
 
 
 playerNameInput.value = activeUserName ? playerName : "Chubdoo";
+playerNameInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    passwordInput.focus();
+  }
+});
+passwordInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    if (activeUserName) {
+      startGame();
+    } else {
+      loginAccount();
+    }
+  }
+});
+chooseChubsonButton.addEventListener("click", () => selectFixedPlayer("Chubson"));
+chooseChubdooButton.addEventListener("click", () => selectFixedPlayer("Chubdoo"));
 createAccountButton.addEventListener("click", createAccount);
 loginButton.addEventListener("click", loginAccount);
 logoutButton.addEventListener("click", logoutAccount);
@@ -1773,9 +1897,9 @@ initializeTotalPointsFromKnownScores();
 
 // If the active user was just purged, log them out automatically.
 if (activeUserName && !userAccounts[getUserKey(activeUserName)]) {
-  activeUserName = "";
-  playerName = "Player";
-  localStorage.removeItem(ACTIVE_USER_KEY);
+  activeUserName = "Chubdoo";
+  playerName = "Chubdoo";
+  localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
 }
 
 maybeResetScoresNightly();
