@@ -276,9 +276,25 @@
     .asset-warning {
       display: none !important;
     }
+    .pause-side-row {
+      justify-content: center;
+    }
+    .pause-side-row label {
+      flex: 1;
+      white-space: normal;
+      text-align: left;
+    }
+    .pause-side-row input[type="checkbox"] {
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      accent-color: #0284c7;
+    }
     .pause-button {
       position: fixed;
-      right: calc(12px + env(safe-area-inset-right));
+      left: calc(12px + env(safe-area-inset-left));
+      right: auto;
       bottom: calc(12px + env(safe-area-inset-bottom));
       z-index: 12;
       display: none;
@@ -291,6 +307,10 @@
       padding: 9px 12px;
       cursor: pointer;
       pointer-events: auto;
+    }
+    .pause-button.pause-right {
+      left: auto;
+      right: calc(12px + env(safe-area-inset-right));
     }
     .game-over-actions {
       position: fixed;
@@ -407,6 +427,10 @@
     <input id="imageUploadInput" type="file" accept="image/*" aria-label="Choose photo from your phone">
   </div>
   <div class="image-upload-name" id="imageUploadName"></div>
+  <div class="hud-row pause-side-row" id="pauseSideRow">
+    <input id="pauseRightCheckbox" type="checkbox">
+    <label for="pauseRightCheckbox">Make pause button on right</label>
+  </div>
   <div class="sprite-hint" id="spriteHint"></div>
   <div class="score-list-title" id="scoreListTitle"></div>
   <ol class="score-list" id="scoreList"></ol>
@@ -458,6 +482,7 @@ const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
 const imageUploadInput = document.getElementById("imageUploadInput");
 const imageUploadName = document.getElementById("imageUploadName");
+const pauseRightCheckbox = document.getElementById("pauseRightCheckbox");
 const chooseChubsonButton = document.getElementById("chooseChubsonButton");
 const chooseChubdooButton = document.getElementById("chooseChubdooButton");
 const selectedSpritePreview = document.getElementById("selectedSpritePreview");
@@ -552,6 +577,7 @@ const TOP3_FOREVER_KEY = "inventorpath_top3_forever";
 const PER_USER_TOP3_FOREVER_KEY = "inventorpath_per_user_top3_forever";
 const DAILY_STATS_KEY = "inventorpath_daily_stats";
 const TOTAL_POINTS_BY_USER_KEY = "inventorpath_total_points_by_user";
+const PAUSE_BUTTON_RIGHT_KEY = "inventorpath_pause_button_right";
 const LAST_RESET_DATE_KEY = "inventorpath_last_reset_date";
 const DATA_VERSION_KEY = "inventorpath_data_version";
 const INACTIVITY_DAYS = 14;
@@ -779,6 +805,24 @@ function saveScoreToServer(entry) {
   // Future public-release hook. localStorage scores are prototype-only and
   // can be edited by users in browser developer tools.
   // Example later: return fetch("/api/scores", { method: "POST", body: JSON.stringify(entry) });
+}
+
+function isPauseButtonRightEnabled() {
+  return localStorage.getItem(PAUSE_BUTTON_RIGHT_KEY) === "true";
+}
+
+function savePauseButtonSidePreference(isRightSide) {
+  localStorage.setItem(PAUSE_BUTTON_RIGHT_KEY, isRightSide ? "true" : "false");
+}
+
+function applyPauseButtonSidePreference() {
+  const isRightSide = isPauseButtonRightEnabled();
+  if (pauseRightCheckbox) {
+    pauseRightCheckbox.checked = isRightSide;
+  }
+  if (pauseGameButton) {
+    pauseGameButton.classList.toggle("pause-right", isRightSide);
+  }
 }
 
 function renderPlayerButtons() {
@@ -2075,6 +2119,7 @@ function updateGameOverActionsLayout(tableX, tableY, tableWidth, tableHeight) {
 
 
 function updatePauseButtonVisibility() {
+  applyPauseButtonSidePreference();
   pauseGameButton.style.display = gameStarted && !gameOver && activeUserName && !backgroundSwapPending ? "block" : "none";
   pauseGameButton.textContent = gamePaused ? "Resume" : "Pause";
 }
@@ -2210,6 +2255,12 @@ function setGameOver() {
 chooseChubsonButton.addEventListener("click", () => selectFixedPlayer("Chubson"));
 chooseChubdooButton.addEventListener("click", () => selectFixedPlayer("Chubdoo"));
 pauseGameButton.addEventListener("click", togglePause);
+if (pauseRightCheckbox) {
+  pauseRightCheckbox.addEventListener("change", () => {
+    savePauseButtonSidePreference(pauseRightCheckbox.checked);
+    applyPauseButtonSidePreference();
+  });
+}
 gameOverLogoutButton.addEventListener("click", logoutAccount);
 gameOverPlayAgainButton.addEventListener("click", startGame);
 imageUploadInput.addEventListener("change", handleImageUpload);
@@ -2256,6 +2307,7 @@ saveCurrentUserScoreFile();
 renderScoreHistory();
 renderAuthStatus();
 renderMissingAssetWarning();
+applyPauseButtonSidePreference();
 applyCurrentPlayerSprite();
 updateStartButtonLabel();
 updateHudVisibility();
