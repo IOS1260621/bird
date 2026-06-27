@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>Invent<orPath Flappy Game V12</title>
+  <title>InventorPath Flappy Game V14</title>
   <style>
     html, body {
       width: 100%;
@@ -230,21 +230,20 @@
 </head>
 <body>
 <div class="hud-panel" id="hudPanel">
-  <div class="auth-status" id="authStatus">Sign in or create a player account.</div>
+  <div class="auth-status" id="authStatus">Choose a player to start.</div>
   <div class="auth-note" id="authNote"></div>
   <div class="hud-row" id="authUserRow">
-    <label for="playerNameInput">User</label>
-    <input id="playerNameInput" type="text" maxlength="20" placeholder="User name">
+    <label for="playerNameInput">Player</label>
+    <select id="playerNameInput">
+      <option value="Chubdoo">Chubdoo</option>
+      <option value="Chubson">Chubson</option>
+    </select>
   </div>
-  <div class="hud-row" id="authPassRow">
-    <label for="passwordInput">Pass</label>
-    <input id="passwordInput" type="password" maxlength="30" placeholder="Password">
-  </div>
-  <div class="warning-note" id="passwordWarning">Game accounts are saved only on this device. Do not use a real password.</div>
+  <div class="warning-note" id="passwordWarning" style="display:none;"></div>
   <div class="asset-warning" id="assetWarning"></div>
   <div class="hud-actions">
-    <button class="secondary-button" id="createAccountButton" type="button">Create New User</button>
-    <button class="secondary-button" id="loginButton" type="button">Log In</button>
+    <button class="secondary-button" id="createAccountButton" type="button" style="display:none;">Create New User</button>
+    <button class="secondary-button" id="loginButton" type="button">Play as Selected Player</button>
     <button class="secondary-button" id="logoutButton" type="button" style="display:none;">Log Out</button>
     <button class="secondary-button" id="downloadScoreFileButton" type="button" style="display:none;">Download My Score File</button>
   </div>
@@ -288,16 +287,13 @@ const spriteHint = document.getElementById("spriteHint");
 const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
-const passwordInput = document.getElementById("passwordInput");
 const authStatus = document.getElementById("authStatus");
 const authNote = document.getElementById("authNote");
 const authUserRow = document.getElementById("authUserRow");
-const authPassRow = document.getElementById("authPassRow");
 const createAccountButton = document.getElementById("createAccountButton");
 const loginButton = document.getElementById("loginButton");
 const logoutButton = document.getElementById("logoutButton");
 const downloadScoreFileButton = document.getElementById("downloadScoreFileButton");
-const passwordWarning = document.getElementById("passwordWarning");
 const assetWarning = document.getElementById("assetWarning");
 const adminPanel = document.getElementById("adminPanel");
 const clearDailyScoresButton = document.getElementById("clearDailyScoresButton");
@@ -314,7 +310,7 @@ const PNG_DOG_SPRITES = AVAILABLE_DOG_SPRITES.filter(spriteName => spriteName.to
 
 // ── Game settings ───────────────────────────────────────────────────────────
 const GAME_CONFIG = {
-  dataVersion: 12,
+  dataVersion: 14,
   maxScoreHistoryEntries: 100,
   firstMysteryScore: 5,
   repeatMysteryStartScore: 22,
@@ -359,7 +355,7 @@ const GAME_CONFIG = {
 };
 
 
-// Version 2: preload all player sprites once and switch by name.
+// V13: preload all player sprites once and switch by name.
 // This prevents iPhone/GitHub Pages timing/caching issues where the selector
 // changed but the displayed Bruce image did not update reliably.
 const spriteImages = {};
@@ -391,6 +387,7 @@ const SCORE_FILE_PREFIX = "inventorpath_score_file_";
 const TOP3_FOREVER_KEY = "inventorpath_top3_forever";
 const PER_USER_TOP3_FOREVER_KEY = "inventorpath_per_user_top3_forever";
 const DAILY_STATS_KEY = "inventorpath_daily_stats";
+const TOTAL_POINTS_BY_USER_KEY = "inventorpath_total_points_by_user";
 const LAST_RESET_DATE_KEY = "inventorpath_last_reset_date";
 const DATA_VERSION_KEY = "inventorpath_data_version";
 const INACTIVITY_DAYS = 14;
@@ -435,21 +432,44 @@ function getUserKey(name) {
   return sanitizeUsername(name).toLowerCase();
 }
 
+const FIXED_LOGIN_PASSWORD = "password";
+const FIXED_USER_ACCOUNTS = {
+  chubdoo: {
+    userName: "Chubdoo",
+    password: FIXED_LOGIN_PASSWORD,
+    createdAt: "fixed-account",
+    lastActivity: "fixed-account"
+  },
+  chubson: {
+    userName: "Chubson",
+    password: FIXED_LOGIN_PASSWORD,
+    createdAt: "fixed-account",
+    lastActivity: "fixed-account"
+  }
+};
+
+function isFixedUserKey(userKey) {
+  return Object.prototype.hasOwnProperty.call(FIXED_USER_ACCOUNTS, String(userKey || "").toLowerCase());
+}
+
+function isAllowedPlayerName(name) {
+  return isFixedUserKey(getUserKey(name));
+}
+
+function getFixedUserAccounts() {
+  return JSON.parse(JSON.stringify(FIXED_USER_ACCOUNTS));
+}
+
 // ── Storage / accounts ─────────────────────────────────────────────────────
 function loadUserAccounts() {
-  try {
-    const raw = localStorage.getItem(USER_ACCOUNTS_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return {};
-    }
-    return parsed;
-  } catch {
-    return {};
-  }
+  // V13: only two built-in player accounts are allowed.
+  // Old browser-saved users are ignored so random usernames cannot log in.
+  return getFixedUserAccounts();
 }
 
 function saveUserAccounts() {
+  // Keep localStorage synced, but never allow extra player accounts.
+  userAccounts = getFixedUserAccounts();
   localStorage.setItem(USER_ACCOUNTS_KEY, JSON.stringify(userAccounts));
 }
 
@@ -485,6 +505,7 @@ function saveCurrentUserScoreFile() {
     todayStats,
     allTimeBest,
     totalGamesToday: todayStats.gamesPlayed || 0,
+    totalPointsBattle: getTotalPointsChartData(),
     currentSpriteChoice: getCurrentPlayerSpriteChoice()
   };
 
@@ -565,6 +586,7 @@ function clearAllTimeScoresAdmin() {
   localStorage.setItem(TOP3_FOREVER_KEY, JSON.stringify([]));
   localStorage.setItem(PER_USER_TOP3_FOREVER_KEY, JSON.stringify({}));
   localStorage.setItem(SCORE_HISTORY_KEY, JSON.stringify([]));
+  localStorage.removeItem(TOTAL_POINTS_BY_USER_KEY);
   getLocalStorageKeys(SCORE_FILE_PREFIX).forEach(key => localStorage.removeItem(key));
   resetScoreUiAfterAdminChange();
 }
@@ -573,6 +595,7 @@ function clearAllUsersAdmin() {
   if (!isAdminUser() || !window.confirm("Clear all users, logout, and remove user score files?")) return;
   getLocalStorageKeys(SCORE_FILE_PREFIX).forEach(key => localStorage.removeItem(key));
   localStorage.setItem(USER_ACCOUNTS_KEY, JSON.stringify({}));
+  localStorage.removeItem(TOTAL_POINTS_BY_USER_KEY);
   localStorage.removeItem(ACTIVE_USER_KEY);
   userAccounts = {};
   logoutAccount();
@@ -638,11 +661,9 @@ function saveScoreToServer(entry) {
 
 function renderAuthStatus() {
   if (activeUserName) {
-    authStatus.textContent = "Logged in as " + playerName;
+    authStatus.textContent = "Playing as " + playerName;
     authNote.style.display = "none";
     authUserRow.style.display = "none";
-    authPassRow.style.display = "none";
-    passwordWarning.style.display = "none";
     loginButton.style.display = "none";
     createAccountButton.style.display = "none";
     logoutButton.style.display = "block";
@@ -650,17 +671,18 @@ function renderAuthStatus() {
     startGameButton.disabled = false;
     startGameButton.style.opacity = "1";
   } else {
-    authStatus.textContent = "Sign in or create a player account.";
+    authStatus.textContent = "Choose a player to start.";
     authNote.style.display = "none";
     authUserRow.style.display = "flex";
-    authPassRow.style.display = "flex";
-    passwordWarning.style.display = "block";
     loginButton.style.display = "block";
-    createAccountButton.style.display = "block";
+    createAccountButton.style.display = "none";
     logoutButton.style.display = "none";
     downloadScoreFileButton.style.display = "none";
     startGameButton.disabled = true;
     startGameButton.style.opacity = "0.55";
+    if (!isAllowedPlayerName(playerNameInput.value)) {
+      playerNameInput.value = "Chubdoo";
+    }
   }
   renderAdminPanel();
   updatePauseButtonVisibility();
@@ -669,70 +691,23 @@ function renderAuthStatus() {
 
 
 function createAccount() {
-  const typedName = playerNameInput.value.trim();
-  const name = sanitizeUsername(playerNameInput.value);
-  const password = passwordInput.value;
-  const userKey = getUserKey(name);
-
-  if (!name || !password) {
-    alert("Enter a user name and password.");
-    return;
-  }
-
-  if (typedName && typedName !== name) {
-    const okay = window.confirm("Your username will be saved as " + name + ". Continue?");
-    if (!okay) {
-      return;
-    }
-  }
-
-  if (userAccounts[userKey]) {
-    alert("That user already exists. Use Log In instead.");
-    return;
-  }
-
-  // Static HTML version: password is stored locally in this browser only.
-  // This is not real online security. Use simple game passwords only.
-  userAccounts[userKey] = {
-    userName: name,
-    password: password,
-    createdAt: new Date().toISOString(),
-    lastActivity: new Date().toISOString()
-  };
-  saveUserAccounts();
-
-  activeUserName = name;
-  playerName = name;
-  localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
-  playerNameInput.value = playerName;
-  passwordInput.value = "";
-  saveCurrentUserScoreFile();
-  renderScoreHistory();
-  renderAuthStatus();
-  applyCurrentPlayerSprite();
-  updateHudVisibility();
+  // No-op: accounts are fixed to Chubdoo and Chubson.
 }
-
-
 
 function loginAccount() {
   const name = sanitizeUsername(playerNameInput.value);
-  const password = passwordInput.value;
   const userKey = getUserKey(name);
   const account = userAccounts[userKey];
 
-  if (!account || account.password !== password) {
-    alert("Incorrect user name or password.");
+  if (!isAllowedPlayerName(name) || !account) {
+    alert("Choose Chubdoo or Chubson.");
     return;
   }
 
-  account.lastActivity = new Date().toISOString();
-  saveUserAccounts();
   activeUserName = account.userName;
   playerName = account.userName;
   localStorage.setItem(ACTIVE_USER_KEY, activeUserName);
   playerNameInput.value = playerName;
-  passwordInput.value = "";
   renderScoreHistory();
   renderAuthStatus();
   applyCurrentPlayerSprite();
@@ -743,8 +718,7 @@ function logoutAccount() {
   activeUserName = "";
   playerName = "Player";
   localStorage.removeItem(ACTIVE_USER_KEY);
-  playerNameInput.value = "";
-  passwordInput.value = "";
+  playerNameInput.value = "Chubdoo";
   gameStarted = false;
   gameOver = false;
   renderScoreHistory();
@@ -772,6 +746,9 @@ let activeUserName = sanitizeUsername(localStorage.getItem(ACTIVE_USER_KEY) || "
 if (activeUserName && !userAccounts[getUserKey(activeUserName)]) {
   activeUserName = "";
   localStorage.removeItem(ACTIVE_USER_KEY);
+}
+if (activeUserName) {
+  activeUserName = userAccounts[getUserKey(activeUserName)].userName;
 }
 
 let playerName = activeUserName || "Player";
@@ -882,6 +859,7 @@ function compareScoreEntries(a, b) {
 function isValidScoreEntry(entry) {
   return entry &&
     typeof entry.name === "string" &&
+    isAllowedPlayerName(entry.name) &&
     Number.isFinite(entry.score) &&
     typeof entry.playedAt === "string";
 }
@@ -1202,19 +1180,6 @@ function getEffectLabelForDeath() {
 }
 
 function getActiveEffectLabel() {
-
-  if (gamePaused && !gameOver) {
-    ctx.fillStyle = "rgba(0,0,0,0.42)";
-    ctx.fillRect(0, 0, gameWidth, gameHeight);
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.font = "bold " + Math.round(clamp(42 * uiScale, 32, 52)) + "px Arial";
-    ctx.fillText("Paused", gameWidth / 2, gameHeight / 2);
-    ctx.font = Math.round(clamp(18 * uiScale, 14, 24)) + "px Arial";
-    ctx.fillText("Tap Resume to continue", gameWidth / 2, gameHeight / 2 + Math.round(34 * uiScale));
-    ctx.textAlign = "left";
-  }
-
   if (gameOver) {
     return deathEffectLabel || "None";
   }
@@ -1226,6 +1191,19 @@ function getActiveEffectLabel() {
 
   return "None";
 }
+
+function drawPausedOverlay() {
+  ctx.fillStyle = "rgba(0,0,0,0.42)";
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+  ctx.fillStyle = "white";
+  ctx.textAlign = "center";
+  ctx.font = "bold " + Math.round(clamp(42 * uiScale, 32, 52)) + "px Arial";
+  ctx.fillText("Paused", gameWidth / 2, gameHeight / 2);
+  ctx.font = Math.round(clamp(18 * uiScale, 14, 24)) + "px Arial";
+  ctx.fillText("Tap Resume to continue", gameWidth / 2, gameHeight / 2 + Math.round(34 * uiScale));
+  ctx.textAlign = "left";
+}
+
 
 // ── Mystery box system ──────────────────────────────────────────────────────
 function spawnMysteryBoxAt(x, y) {
@@ -1370,6 +1348,7 @@ function purgeInactiveAccounts() {
     if (!activityIso) return;
     const activityTime = new Date(activityIso).getTime();
     if (!Number.isFinite(activityTime)) return;
+    if (isFixedUserKey(key)) return;
     if ((now - activityTime) / MS_PER_DAY > INACTIVITY_DAYS) {
       const userKey = normalizedName(account.userName);
       scoreHistory = scoreHistory.filter(entry => normalizedName(entry.name) !== userKey);
@@ -1440,6 +1419,101 @@ function getTodayStatsForPlayer(name) {
   const stats = loadDailyStats();
   const today = getDayString();
   return (stats[today] && stats[today][normalizedName(name)]) || null;
+}
+
+
+// ── Total points battle stats ───────────────────────────────────────────────
+
+function createEmptyTotalPointsByUser() {
+  return {
+    chubson: { userName: "Chubson", totalPoints: 0, gamesPlayed: 0 },
+    chubdoo: { userName: "Chubdoo", totalPoints: 0, gamesPlayed: 0 }
+  };
+}
+
+function loadTotalPointsByUser() {
+  const totals = createEmptyTotalPointsByUser();
+
+  try {
+    const raw = localStorage.getItem(TOTAL_POINTS_BY_USER_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return totals;
+    }
+
+    Object.keys(totals).forEach(userKey => {
+      const saved = parsed[userKey];
+      if (typeof saved === "number") {
+        totals[userKey].totalPoints = Math.max(0, Math.floor(saved));
+        return;
+      }
+      if (saved && typeof saved === "object") {
+        totals[userKey].totalPoints = Math.max(0, Math.floor(Number(saved.totalPoints) || 0));
+        totals[userKey].gamesPlayed = Math.max(0, Math.floor(Number(saved.gamesPlayed) || 0));
+      }
+    });
+  } catch {
+    return totals;
+  }
+
+  return totals;
+}
+
+function saveTotalPointsByUser(totals) {
+  localStorage.setItem(TOTAL_POINTS_BY_USER_KEY, JSON.stringify(totals));
+}
+
+function updateTotalPointsForPlayer(name, roundScore) {
+  const userKey = getUserKey(name);
+  if (!isFixedUserKey(userKey)) {
+    return;
+  }
+
+  const totals = loadTotalPointsByUser();
+  if (!totals[userKey]) {
+    totals[userKey] = {
+      userName: FIXED_USER_ACCOUNTS[userKey].userName,
+      totalPoints: 0,
+      gamesPlayed: 0
+    };
+  }
+
+  totals[userKey].userName = FIXED_USER_ACCOUNTS[userKey].userName;
+  totals[userKey].totalPoints += Math.max(0, Math.floor(Number(roundScore) || 0));
+  totals[userKey].gamesPlayed += 1;
+  saveTotalPointsByUser(totals);
+}
+
+function getTotalPointsChartData() {
+  const totals = loadTotalPointsByUser();
+  return ["chubson", "chubdoo"].map(userKey => ({
+    userKey,
+    userName: totals[userKey].userName,
+    totalPoints: totals[userKey].totalPoints || 0,
+    gamesPlayed: totals[userKey].gamesPlayed || 0
+  }));
+}
+
+function getTotalBattlePoints() {
+  return getTotalPointsChartData().reduce((sum, item) => sum + item.totalPoints, 0);
+}
+
+
+function initializeTotalPointsFromKnownScores() {
+  if (localStorage.getItem(TOTAL_POINTS_BY_USER_KEY)) {
+    return;
+  }
+
+  const totals = createEmptyTotalPointsByUser();
+  scoreHistory.filter(isValidScoreEntry).forEach(entry => {
+    const userKey = getUserKey(entry.name);
+    if (!isFixedUserKey(userKey)) {
+      return;
+    }
+    totals[userKey].totalPoints += Math.max(0, Math.floor(Number(entry.score) || 0));
+    totals[userKey].gamesPlayed += 1;
+  });
+  saveTotalPointsByUser(totals);
 }
 
 // ── Midnight score reset ──────────────────────────────────────────────────────
@@ -1631,8 +1705,9 @@ function persistCurrentScore() {
   };
   scoreHistory.unshift(lastSavedEntry);
   scoreHistory = scoreHistory.slice(0, GAME_CONFIG.maxScoreHistoryEntries);
-  saveScoreHistory();
+  updateTotalPointsForPlayer(playerName, score);
   recordDailyActivity(playerName, score);
+  saveScoreHistory();
 
   // Refresh last-activity so this user's data won't expire for another 14 days.
   const actKey = getUserKey(playerName);
@@ -1660,21 +1735,7 @@ function setGameOver() {
 
 
 
-playerNameInput.value = activeUserName ? playerName : "";
-playerNameInput.addEventListener("keydown", event => {
-  if (event.key === "Enter") {
-    passwordInput.focus();
-  }
-});
-passwordInput.addEventListener("keydown", event => {
-  if (event.key === "Enter") {
-    if (activeUserName) {
-      startGame();
-    } else {
-      loginAccount();
-    }
-  }
-});
+playerNameInput.value = activeUserName ? playerName : "Chubdoo";
 createAccountButton.addEventListener("click", createAccount);
 loginButton.addEventListener("click", loginAccount);
 logoutButton.addEventListener("click", logoutAccount);
@@ -1708,6 +1769,7 @@ purgeInactiveAccounts();
 // before the daily reset can clear the short-term score list.
 updateTop3Forever();
 updatePerUserTop3Forever();
+initializeTotalPointsFromKnownScores();
 
 // If the active user was just purged, log them out automatically.
 if (activeUserName && !userAccounts[getUserKey(activeUserName)]) {
@@ -2010,6 +2072,99 @@ function drawFibonacciPattern(pipe, y, height, timeMs, sectionOffset) {
   ctx.restore();
 }
 
+
+function drawTotalPointsPieChart(panelX, panelY, panelWidth, panelHeight) {
+  const data = getTotalPointsChartData();
+  const totalPoints = data.reduce((sum, item) => sum + item.totalPoints, 0);
+  const titleFont = Math.round(clamp(15 * uiScale, 12, 19));
+  const labelFont = Math.round(clamp(12 * uiScale, 10, 15));
+  const valueFont = Math.round(clamp(13 * uiScale, 11, 16));
+
+  ctx.save();
+  ctx.fillStyle = "rgba(15,23,42,0.76)";
+  ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = "#f8fafc";
+  ctx.font = "900 " + titleFont + "px Arial";
+  ctx.fillText("Total Points Battle", panelX + panelWidth / 2, panelY + Math.round(clamp(22 * uiScale, 18, 28)));
+
+  const radius = Math.round(clamp(Math.min(panelWidth * 0.18, panelHeight * 0.32), 38, 62));
+  const centerX = panelX + Math.round(panelWidth * 0.29);
+  const centerY = panelY + Math.round(panelHeight * 0.57);
+  const colors = {
+    chubson: "#38bdf8",
+    chubdoo: "#fbbf24"
+  };
+
+  if (totalPoints <= 0) {
+    ctx.beginPath();
+    ctx.fillStyle = "#64748b";
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "700 " + labelFont + "px Arial";
+    ctx.fillText("No points yet", centerX, centerY + 4);
+  } else {
+    let startAngle = -Math.PI / 2;
+    data.forEach(item => {
+      if (item.totalPoints <= 0) {
+        return;
+      }
+      const sliceAngle = (item.totalPoints / totalPoints) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.fillStyle = colors[item.userKey] || "#e2e8f0";
+      ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
+      ctx.closePath();
+      ctx.fill();
+      startAngle += sliceAngle;
+    });
+
+    ctx.beginPath();
+    ctx.strokeStyle = "rgba(255,255,255,0.78)";
+    ctx.lineWidth = 2;
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(15,23,42,0.82)";
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, Math.max(18, radius * 0.38), 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "900 " + valueFont + "px Arial";
+    ctx.fillText(String(totalPoints), centerX, centerY - 1);
+    ctx.font = "700 " + Math.round(clamp(10 * uiScale, 8, 12)) + "px Arial";
+    ctx.fillText("pts", centerX, centerY + Math.round(clamp(13 * uiScale, 10, 15)));
+  }
+
+  const legendX = panelX + Math.round(panelWidth * 0.55);
+  const firstLegendY = panelY + Math.round(panelHeight * 0.47);
+  ctx.textAlign = "left";
+  data.forEach((item, index) => {
+    const y = firstLegendY + index * Math.round(clamp(34 * uiScale, 28, 40));
+    const pct = totalPoints > 0 ? Math.round((item.totalPoints / totalPoints) * 100) : 0;
+
+    ctx.fillStyle = colors[item.userKey] || "#e2e8f0";
+    ctx.fillRect(legendX, y - 11, 13, 13);
+
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "900 " + labelFont + "px Arial";
+    ctx.fillText(item.userName, legendX + 22, y);
+
+    ctx.fillStyle = "#cbd5e1";
+    ctx.font = "700 " + labelFont + "px Arial";
+    ctx.fillText(item.totalPoints + " pts  •  " + pct + "%", legendX + 22, y + Math.round(clamp(16 * uiScale, 13, 19)));
+  });
+
+  ctx.restore();
+}
+
 function draw() {
   ctx.clearRect(0, 0, gameWidth, gameHeight);
   const nowMs = performance.now();
@@ -2120,11 +2275,15 @@ function draw() {
   ctx.font = "700 " + effectFont + "px Arial";
   ctx.fillText("Effect: " + getActiveEffectLabel(), hudX, effectY);
 
+  if (gamePaused && !gameOver) {
+    drawPausedOverlay();
+  }
+
   if (gameOver) {
-    const titleFont = Math.round(clamp(42 * uiScale, 32, 50));
-    const bodyFont = Math.round(clamp(24 * uiScale, 19, 30));
-    const subTextFont = Math.round(clamp(17 * uiScale, 14, 22));
-    const goldFont = Math.round(clamp(30 * uiScale, 24, 38));
+    const titleFont = Math.round(clamp(38 * uiScale, 30, 48));
+    const bodyFont = Math.round(clamp(22 * uiScale, 18, 28));
+    const subTextFont = Math.round(clamp(15 * uiScale, 12, 20));
+    const goldFont = Math.round(clamp(26 * uiScale, 21, 34));
 
     const currentEntry = lastSavedEntry || {
       name: playerName,
@@ -2137,33 +2296,42 @@ function draw() {
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(0, 0, gameWidth, gameHeight);
 
+    const centerX = gameWidth / 2;
+    const topY = Math.round(clamp(gameHeight * 0.11, 64, 105));
+
     ctx.fillStyle = "white";
     ctx.textAlign = "center";
     ctx.font = "bold " + titleFont + "px Arial";
-    ctx.fillText("Game Over", gameWidth / 2, gameHeight / 2 - 40);
+    ctx.fillText("Game Over", centerX, topY);
 
     ctx.font = bodyFont + "px Arial";
-    ctx.fillText("Score: " + score, gameWidth / 2, gameHeight / 2);
+    ctx.fillText("Score: " + score, centerX, topY + Math.round(clamp(38 * uiScale, 32, 45)));
 
     ctx.font = subTextFont + "px Arial";
-    ctx.fillText("Played: " + formatPlayedAt(currentEntry.playedAt), gameWidth / 2, gameHeight / 2 + 30);
+    ctx.fillText("Played: " + formatPlayedAt(currentEntry.playedAt), centerX, topY + Math.round(clamp(66 * uiScale, 55, 78)));
 
     ctx.fillStyle = "#fbbf24";
     ctx.font = "900 " + goldFont + "px Impact, Arial Black, sans-serif";
-    ctx.fillText("#1 " + topEntry.name + " - " + topEntry.score, gameWidth / 2, gameHeight / 2 + 68);
+    ctx.fillText("#1 " + topEntry.name + " - " + topEntry.score, centerX, topY + Math.round(clamp(101 * uiScale, 84, 116)));
 
-    const tableWidth = clamp(gameWidth * 0.9, 300, 760);
-    const rowHeight = Math.round(clamp(30 * uiScale, 24, 36));
+    const panelWidth = clamp(gameWidth * 0.9, 300, 760);
+    const panelX = (gameWidth - panelWidth) / 2;
+    const chartHeight = Math.round(clamp(138 * uiScale, 120, 160));
+    const chartY = topY + Math.round(clamp(123 * uiScale, 106, 138));
+    drawTotalPointsPieChart(panelX, chartY, panelWidth, chartHeight);
+
+    const tableWidth = panelWidth;
+    const rowHeight = Math.round(clamp(28 * uiScale, 23, 34));
     const headerHeight = rowHeight;
     const tableRows = 3;
     const tableHeight = headerHeight + rowHeight * tableRows;
-    const tableX = (gameWidth - tableWidth) / 2;
-    const tableTitleY = gameHeight / 2 + 92;
-    const tableY = tableTitleY + Math.round(clamp(24 * uiScale, 20, 32));
+    const tableX = panelX;
+    const tableTitleY = chartY + chartHeight + Math.round(clamp(24 * uiScale, 18, 30));
+    const tableY = tableTitleY + Math.round(clamp(22 * uiScale, 18, 28));
 
     ctx.fillStyle = "#f8fafc";
     ctx.font = "800 " + Math.round(clamp(16 * uiScale, 13, 20)) + "px Arial";
-    ctx.fillText("All-Time Top 3", gameWidth / 2, tableTitleY);
+    ctx.fillText("All-Time Top 3", centerX, tableTitleY);
 
     ctx.fillStyle = "rgba(15,23,42,0.72)";
     ctx.fillRect(tableX, tableY, tableWidth, tableHeight);
@@ -2178,7 +2346,7 @@ function draw() {
 
     ctx.textAlign = "center";
     ctx.fillStyle = "#e2e8f0";
-    ctx.font = "700 " + Math.round(clamp(14 * uiScale, 12, 17)) + "px Arial";
+    ctx.font = "700 " + Math.round(clamp(14 * uiScale, 11, 17)) + "px Arial";
     ctx.fillText("Rank", colRank, tableY + headerHeight * 0.66);
     ctx.fillText("User", colUser, tableY + headerHeight * 0.66);
     ctx.fillText("Score", colScore, tableY + headerHeight * 0.66);
@@ -2202,7 +2370,7 @@ function draw() {
       const rowCenterY = tableY + headerHeight + rowHeight * idx + rowHeight * 0.66;
       const isTop = idx === 0 && entry;
 
-      ctx.font = (isTop ? "900 " : "700 ") + Math.round(clamp((isTop ? 16 : 14) * uiScale, 12, isTop ? 22 : 18)) + "px Arial";
+      ctx.font = (isTop ? "900 " : "700 ") + Math.round(clamp((isTop ? 15 : 13) * uiScale, 11, isTop ? 20 : 17)) + "px Arial";
       ctx.fillStyle = isTop ? "#fbbf24" : "#f8fafc";
 
       if (!entry) {
