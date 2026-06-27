@@ -438,6 +438,23 @@
     .hundred-photo-secondary-button:active {
       transform: translateY(1px);
     }
+    .hundred-photo-start-button {
+      display: none;
+      width: 100%;
+      border: 0;
+      border-radius: 14px;
+      background: #0284c7;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 950;
+      padding: 13px 14px;
+      cursor: pointer;
+      margin-top: 8px;
+      box-shadow: 0 8px 18px rgba(2, 132, 199, 0.24);
+    }
+    .hundred-photo-start-button:active {
+      transform: translateY(1px);
+    }
 
   </style>
 </head>
@@ -483,6 +500,7 @@
     <div class="hundred-photo-title" id="hundredPhotoTitle">100 points!</div>
     <div class="hundred-photo-text" id="hundredPhotoText">Pick a new picture to reveal in the background. Bruce will restart in the center and receive 3 seconds of God Mode.</div>
     <button class="hundred-photo-button" id="hundredPhotoPickButton" type="button">Pick New Picture</button>
+    <button class="hundred-photo-start-button" id="hundredPhotoStartButton" type="button">Start Game</button>
     <button class="hundred-photo-secondary-button" id="hundredPhotoContinueButton" type="button">Continue With Same Picture</button>
     <input id="hundredImageUploadInput" type="file" accept="image/*" style="display:none;" aria-label="Choose new background photo">
   </div>
@@ -502,6 +520,7 @@ const hundredPhotoModal = document.getElementById("hundredPhotoModal");
 const hundredPhotoTitle = document.getElementById("hundredPhotoTitle");
 const hundredPhotoText = document.getElementById("hundredPhotoText");
 const hundredPhotoPickButton = document.getElementById("hundredPhotoPickButton");
+const hundredPhotoStartButton = document.getElementById("hundredPhotoStartButton");
 const hundredPhotoContinueButton = document.getElementById("hundredPhotoContinueButton");
 const hundredImageUploadInput = document.getElementById("hundredImageUploadInput");
 const gameOverActions = document.getElementById("gameOverActions");
@@ -655,6 +674,7 @@ let revealCellOrder = [];
 let backgroundSwapPending = false;
 let pendingHundredScore = 0;
 let nextPhotoMilestoneScore = 100;
+let hundredPhotoReadyToStart = false;
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -1420,7 +1440,7 @@ function handleHundredImageUpload(event) {
   if (!file) {
     return;
   }
-  loadRevealImageFile(file, resumeAfterHundredPhotoChange);
+  loadRevealImageFile(file, prepareHundredPhotoStartAfterImageChoice);
   if (hundredImageUploadInput) {
     hundredImageUploadInput.value = "";
   }
@@ -1429,7 +1449,7 @@ function handleHundredImageUpload(event) {
 function getImageRevealCount() {
 
   if (backgroundSwapPending && pendingHundredScore > 0) {
-    return 100;
+    return hundredPhotoReadyToStart ? 0 : 100;
   }
   return clamp(Math.floor(score % 100), 0, 100);
 }
@@ -1584,11 +1604,21 @@ function drawGameBackground() {
 
 
 function showHundredPhotoPrompt() {
+  hundredPhotoReadyToStart = false;
   if (hundredPhotoTitle) {
     hundredPhotoTitle.textContent = pendingHundredScore + " points!";
   }
   if (hundredPhotoText) {
-    hundredPhotoText.textContent = "Pick a new picture to reveal in the background. Bruce will restart in the center and receive 3 seconds of God Mode.";
+    hundredPhotoText.textContent = "Pick a new picture to reveal in the background. After it loads, press Start Game to continue.";
+  }
+  if (hundredPhotoPickButton) {
+    hundredPhotoPickButton.style.display = "block";
+  }
+  if (hundredPhotoContinueButton) {
+    hundredPhotoContinueButton.style.display = "block";
+  }
+  if (hundredPhotoStartButton) {
+    hundredPhotoStartButton.style.display = "none";
   }
   if (hundredPhotoModal) {
     hundredPhotoModal.style.display = "flex";
@@ -1636,14 +1666,46 @@ function restorePlayerAtHundredPosition() {
   placeBruceAtCenterForImageReveal();
 }
 
+function prepareHundredPhotoStartAfterImageChoice() {
+  if (!backgroundSwapPending || !revealImageReady) {
+    return;
+  }
+
+  hundredPhotoReadyToStart = true;
+  gamePaused = true;
+  bird.velocity = 0;
+  placeBruceAtCenterForImageReveal();
+
+  if (hundredPhotoTitle) {
+    hundredPhotoTitle.textContent = "New picture loaded";
+  }
+  if (hundredPhotoText) {
+    hundredPhotoText.textContent = "Press Start Game to continue. Bruce will restart in the center and receive 3 seconds of God Mode.";
+  }
+  if (hundredPhotoPickButton) {
+    hundredPhotoPickButton.style.display = "none";
+  }
+  if (hundredPhotoContinueButton) {
+    hundredPhotoContinueButton.style.display = "none";
+  }
+  if (hundredPhotoStartButton) {
+    hundredPhotoStartButton.style.display = "block";
+  }
+
+  updatePauseButtonVisibility();
+  draw();
+}
+
 function continueWithSamePictureAfterHundred() {
   if (!backgroundSwapPending || !revealImageReady) {
     return;
   }
+  hundredPhotoReadyToStart = false;
   resumeAfterHundredPhotoChange();
 }
 
 function resumeAfterHundredPhotoChange() {
+  hundredPhotoReadyToStart = false;
   backgroundSwapPending = false;
   pendingHundredScore = 0;
   hideHundredPhotoPrompt();
@@ -2435,6 +2497,13 @@ hundredPhotoPickButton.addEventListener("click", () => {
 });
 hundredImageUploadInput.addEventListener("change", handleHundredImageUpload);
 hundredPhotoContinueButton.addEventListener("click", continueWithSamePictureAfterHundred);
+if (hundredPhotoStartButton) {
+  hundredPhotoStartButton.addEventListener("click", () => {
+    if (backgroundSwapPending && revealImageReady) {
+      resumeAfterHundredPhotoChange();
+    }
+  });
+}
 if (randomSpriteButton) {
   randomSpriteButton.addEventListener("click", chooseRandomSprite);
 }
