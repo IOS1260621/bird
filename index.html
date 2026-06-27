@@ -455,10 +455,6 @@
     <button class="player-choice-button" id="chooseChubdooButton" type="button">Chubdoo</button>
     <button class="player-choice-button" id="chooseChubsonButton" type="button">Chubson</button>
   </div>
-  <div class="hud-row" id="spritePickerRow">
-    <label for="spritePicker">Bruce</label>
-    <select id="spritePicker"></select>
-  </div>
   <div class="sprite-tools-row" id="spriteToolsRow">
     <button class="sprite-tool-button" id="randomSpriteButton" type="button">Random Bruce</button>
     <button class="sprite-tool-button" id="resetSpriteButton" type="button">Reset Bruce</button>
@@ -1185,6 +1181,10 @@ function getDefaultSpriteForCurrentUser() {
 }
 
 function refreshSpritePickerOptions() {
+  if (!spritePicker) {
+    return;
+  }
+
   const allowedSprites = getAllowedSpritesForCurrentUser();
   spritePicker.innerHTML = "";
 
@@ -1217,7 +1217,9 @@ function applySpriteChoice(chosenSprite) {
   spriteChoicesByUser[normalizedName(playerName)] = chosen;
   saveSpriteChoices();
   currentSprite = chosen;
-  spritePicker.value = chosen;
+  if (spritePicker) {
+    spritePicker.value = chosen;
+  }
   updateSelectedSpritePreview(chosen);
 }
 
@@ -1280,7 +1282,9 @@ function updateStartButtonState() {
 function applyCurrentPlayerSprite() {
   if (!activeUserName) {
     currentSprite = DEFAULT_DOG_SPRITE;
-    spritePickerRow.style.display = "none";
+    if (spritePickerRow) {
+      spritePickerRow.style.display = "none";
+    }
     spriteHint.style.display = "none";
     updateSelectedSpritePreview("");
     return;
@@ -1289,9 +1293,13 @@ function applyCurrentPlayerSprite() {
   refreshSpritePickerOptions();
   const chosen = getCurrentPlayerSpriteChoice();
   currentSprite = chosen;
-  spritePicker.value = chosen;
+  if (spritePicker) {
+    spritePicker.value = chosen;
+  }
   updateSelectedSpritePreview(chosen);
-  spritePickerRow.style.display = "flex";
+  if (spritePickerRow) {
+    spritePickerRow.style.display = "none";
+  }
   spriteHint.style.display = "block";
 
   if (isCurrentPlayerTopScorer()) {
@@ -2433,13 +2441,15 @@ if (randomSpriteButton) {
 if (resetSpriteButton) {
   resetSpriteButton.addEventListener("click", resetSpriteChoiceToDefault);
 }
-spritePicker.addEventListener("change", () => {
-  if (!activeUserName) {
-    return;
-  }
+if (spritePicker) {
+  spritePicker.addEventListener("change", () => {
+    if (!activeUserName) {
+      return;
+    }
 
-  applySpriteChoice(spritePicker.value);
-});
+    applySpriteChoice(spritePicker.value);
+  });
+}
 startGameButton.addEventListener("click", startGame);
 
 if (selectedSpritePreviewImage) {
