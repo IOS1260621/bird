@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>Bouncing Bruce V30</title>
+  <title>Bouncing Bruce V31</title>
   <style>
     html, body {
       width: 100%;
@@ -460,9 +460,9 @@
 </head>
 <body>
 <div class="hud-panel" id="hudPanel">
-  <div class="game-title" id="gameTitle" aria-label="Bouncing Bruce Version 30">
+  <div class="game-title" id="gameTitle" aria-label="Bouncing Bruce Version 31">
     <div class="game-title-main">Bouncing Bruce</div>
-    <div class="game-title-sub">Version 30</div>
+    <div class="game-title-sub">Version 31 Cloud Scores</div>
   </div>
   <div class="selected-sprite-preview" id="selectedSpritePreview" aria-live="polite">
     <img id="selectedSpritePreviewImage" alt="Selected Bruce sprite preview">
@@ -512,6 +512,7 @@
 <button class="pause-button" id="pauseGameButton" type="button">Pause</button>
 <canvas id="game"></canvas>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
@@ -550,10 +551,22 @@ const ctGantryImage = new Image();
 const DEFAULT_DOG_SPRITE = "dog.svg";
 const AVAILABLE_DOG_SPRITES = ["dog.svg", "bruce.png", "gooboybruce.PNG", "smileB.png"];
 const PNG_DOG_SPRITES = AVAILABLE_DOG_SPRITES.filter(spriteName => spriteName.toLowerCase().endsWith(".png"));
+const SUPABASE_PROJECT_URL = "https://tvqofzoyyxqbuqgobxvj.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_jC03NY9MNhki9pX9Wmd-TA_GJzmvGxO";
+const SUPABASE_ENABLED = Boolean(
+  SUPABASE_PROJECT_URL &&
+  SUPABASE_PUBLISHABLE_KEY &&
+  window.supabase &&
+  typeof window.supabase.createClient === "function"
+);
+const supabaseClient = SUPABASE_ENABLED
+  ? window.supabase.createClient(SUPABASE_PROJECT_URL, SUPABASE_PUBLISHABLE_KEY)
+  : null;
+
 
 // ── Game settings ───────────────────────────────────────────────────────────
 const GAME_CONFIG = {
-  dataVersion: 30,
+  dataVersion: 31,
   maxScoreHistoryEntries: 100,
   firstMysteryScore: 5,
   repeatMysteryStartScore: 10,
@@ -675,6 +688,16 @@ let backgroundSwapPending = false;
 let pendingHundredScore = 0;
 let nextPhotoMilestoneScore = 100;
 let hundredPhotoReadyToStart = false;
+let keepCurrentPhotoFullyRevealed = false;
+let cloudScoresLoaded = false;
+let cloudScoresLastLoadedAt = 0;
+let cloudScoresSaveError = "";
+let cloudDailyLeaderKey = "";
+let cloudRealtimeChannel = null;
+let cloudDailyTotals = createEmptyCloudDailyTotals();
+let cloudLifetimeTotals = createEmptyCloudLifetimeTotals();
+let cloudTopScores = [];
+
 
 function sanitizeName(name) {
   const trimmed = name.trim().replace(/\s+/g, " ");
@@ -860,10 +883,198 @@ function renderMissingAssetWarning() {
   assetWarning.textContent = "Missing image file(s): " + missingAssetNames.join(", ");
 }
 
-function saveScoreToServer(entry) {
-  // Future public-release hook. localStorage scores are prototype-only and
-  // can be edited by users in browser developer tools.
-  // Example later: return fetch("/api/scores", { method: "POST", body: JSON.stringify(entry) });
+function getHawaiiDayString(date) {
+  const d = date || new Date();
+  try {
+    return d.toLocaleDateString("en-CA", { timeZone: "Pacific/Honolulu" });
+  } catch {
+    return getDayString(d);
+  }
+}
+
+function createEmptyCloudDailyTotals() {
+  return {
+    chubson: { userName: "Chubson", totalPoints: 0, gamesPlayed: 0, highScore: 0 },
+    chubdoo: { userName: "Chubdoo", totalPoints: 0, gamesPlayed: 0, highScore: 0 }
+  };
+}
+
+function createEmptyCloudLifetimeTotals() {
+  return {
+    chubson: { userName: "Chubson", lifetimePoints: 0, lifetimeGames: 0, lifetimeHighScore: 0 },
+    chubdoo: { userName: "Chubdoo", lifetimePoints: 0, lifetimeGames: 0, lifetimeHighScore: 0 }
+  };
+}
+
+function normalizeCloudScoreEntry(row) {
+  if (!row) {
+    return null;
+  }
+
+  const userKey = getUserKey(row.player_key || row.player_name || row.name || "");
+  if (!isFixedUserKey(userKey)) {
+    return null;
+  }
+
+  const points = Math.max(0, Math.floor(Number(row.score) || 0));
+  return {
+    name: FIXED_USER_ACCOUNTS[userKey].userName,
+    score: points,
+    playedAt: row.played_at || row.playedAt || new Date().toISOString()
+  };
+}
+
+function updateCloudDailyLeader() {
+  const dooPoints = cloudDailyTotals.chubdoo ? Number(cloudDailyTotals.chubdoo.totalPoints) || 0 : 0;
+  const sonPoints = cloudDailyTotals.chubson ? Number(cloudDailyTotals.chubson.totalPoints) || 0 : 0;
+
+  if (dooPoints > sonPoints) {
+    cloudDailyLeaderKey = "chubdoo";
+  } else if (sonPoints > dooPoints) {
+    cloudDailyLeaderKey = "chubson";
+  } else {
+    cloudDailyLeaderKey = "";
+  }
+}
+
+async function loadCloudScores() {
+  if (!supabaseClient) {
+    return;
+  }
+
+  const today = getHawaiiDayString();
+  try {
+    const { data: dailyData, error: dailyError } = await supabaseClient
+      .from("daily_player_totals")
+      .select("*")
+      .eq("game_day", today);
+
+    if (dailyError) {
+      console.warn("Supabase daily score load failed:", dailyError);
+    } else if (Array.isArray(dailyData)) {
+      const dailyTotals = createEmptyCloudDailyTotals();
+      dailyData.forEach(row => {
+        const userKey = getUserKey(row.player_key || "");
+        if (!isFixedUserKey(userKey)) {
+          return;
+        }
+        dailyTotals[userKey] = {
+          userName: FIXED_USER_ACCOUNTS[userKey].userName,
+          totalPoints: Math.max(0, Math.floor(Number(row.total_points) || 0)),
+          gamesPlayed: Math.max(0, Math.floor(Number(row.games_played) || 0)),
+          highScore: Math.max(0, Math.floor(Number(row.high_score) || 0))
+        };
+      });
+      cloudDailyTotals = dailyTotals;
+    }
+
+    const { data: lifetimeData, error: lifetimeError } = await supabaseClient
+      .from("lifetime_player_totals")
+      .select("*");
+
+    if (lifetimeError) {
+      console.warn("Supabase lifetime score load failed:", lifetimeError);
+    } else if (Array.isArray(lifetimeData)) {
+      const lifetimeTotals = createEmptyCloudLifetimeTotals();
+      lifetimeData.forEach(row => {
+        const userKey = getUserKey(row.player_key || "");
+        if (!isFixedUserKey(userKey)) {
+          return;
+        }
+        lifetimeTotals[userKey] = {
+          userName: FIXED_USER_ACCOUNTS[userKey].userName,
+          lifetimePoints: Math.max(0, Math.floor(Number(row.lifetime_points) || 0)),
+          lifetimeGames: Math.max(0, Math.floor(Number(row.lifetime_games) || 0)),
+          lifetimeHighScore: Math.max(0, Math.floor(Number(row.lifetime_high_score) || 0))
+        };
+      });
+      cloudLifetimeTotals = lifetimeTotals;
+    }
+
+    const { data: topScoreData, error: topScoreError } = await supabaseClient
+      .from("game_scores")
+      .select("player_key, player_name, score, played_at, game_day")
+      .eq("game_day", today)
+      .order("score", { ascending: false })
+      .order("played_at", { ascending: true })
+      .limit(20);
+
+    if (topScoreError) {
+      console.warn("Supabase top score load failed:", topScoreError);
+    } else if (Array.isArray(topScoreData)) {
+      cloudTopScores = topScoreData
+        .map(normalizeCloudScoreEntry)
+        .filter(Boolean)
+        .sort(compareScoreEntries)
+        .slice(0, 20);
+    }
+
+    cloudScoresLoaded = true;
+    cloudScoresLastLoadedAt = Date.now();
+    cloudScoresSaveError = "";
+    updateCloudDailyLeader();
+    renderScoreHistory();
+    draw();
+  } catch (error) {
+    console.warn("Cloud score load error:", error);
+    cloudScoresSaveError = "Cloud score load failed";
+  }
+}
+
+async function saveScoreToServer(entry) {
+  if (!supabaseClient || !entry) {
+    return;
+  }
+
+  const userKey = getUserKey(entry.name || playerName || "");
+  if (!isFixedUserKey(userKey)) {
+    return;
+  }
+
+  const cleanScore = Math.max(0, Math.floor(Number(entry.score) || 0));
+  const playedAt = entry.playedAt || new Date().toISOString();
+
+  try {
+    const { error } = await supabaseClient
+      .from("game_scores")
+      .insert({
+        player_key: userKey,
+        player_name: FIXED_USER_ACCOUNTS[userKey].userName,
+        score: cleanScore,
+        game_day: getHawaiiDayString(new Date(playedAt)),
+        played_at: playedAt
+      });
+
+    if (error) {
+      console.warn("Supabase score save failed:", error);
+      cloudScoresSaveError = "Cloud score save failed";
+      return;
+    }
+
+    await loadCloudScores();
+  } catch (error) {
+    console.warn("Cloud score save error:", error);
+    cloudScoresSaveError = "Cloud score save failed";
+  }
+}
+
+function subscribeToCloudScores() {
+  if (!supabaseClient || cloudRealtimeChannel) {
+    return;
+  }
+
+  try {
+    cloudRealtimeChannel = supabaseClient
+      .channel("bouncing-bruce-cloud-scores")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "game_scores" },
+        () => loadCloudScores()
+      )
+      .subscribe();
+  } catch (error) {
+    console.warn("Supabase realtime setup failed:", error);
+  }
 }
 
 function isPauseButtonRightEnabled() {
@@ -1174,6 +1385,13 @@ function getScoresForPlayer(name) {
 }
 
 function getTopScores(limit) {
+  if (cloudScoresLoaded && cloudTopScores.length > 0) {
+    return cloudTopScores
+      .slice()
+      .sort(compareScoreEntries)
+      .slice(0, limit);
+  }
+
   return scoreHistory
     .slice()
     .sort(compareScoreEntries)
@@ -1185,6 +1403,13 @@ function saveSpriteChoices() {
 }
 
 function isCurrentPlayerTopScorer() {
+  const currentKey = getUserKey(playerName);
+
+  // V31: once cloud scores load, the daily cloud points leader gets the starter bonus.
+  if (cloudScoresLoaded) {
+    return Boolean(cloudDailyLeaderKey) && currentKey === cloudDailyLeaderKey;
+  }
+
   const topEntry = getTopScores(1)[0];
   return Boolean(topEntry) && normalizedName(topEntry.name) === normalizedName(playerName);
 }
@@ -1358,6 +1583,7 @@ function clearRevealImageSelection() {
   revealImageName = "";
   revealImageObjectUrl = "";
   revealCellOrder = [];
+  keepCurrentPhotoFullyRevealed = false;
   if (imageUploadName) {
     imageUploadName.style.display = "none";
     imageUploadName.textContent = "";
@@ -1388,6 +1614,7 @@ function loadRevealImageFile(file, afterLoad) {
     revealImageObjectUrl = nextObjectUrl;
     revealImageName = nextName;
     revealImageReady = true;
+    keepCurrentPhotoFullyRevealed = false;
     resetImageRevealPuzzle();
 
     if (imageUploadName) {
@@ -1447,6 +1674,9 @@ function handleHundredImageUpload(event) {
 }
 
 function getImageRevealCount() {
+  if (keepCurrentPhotoFullyRevealed) {
+    return 100;
+  }
 
   if (backgroundSwapPending && pendingHundredScore > 0) {
     return hundredPhotoReadyToStart ? 0 : 100;
@@ -1672,6 +1902,7 @@ function prepareHundredPhotoStartAfterImageChoice() {
   }
 
   hundredPhotoReadyToStart = true;
+  keepCurrentPhotoFullyRevealed = false;
   gamePaused = true;
   bird.velocity = 0;
   placeBruceAtCenterForImageReveal();
@@ -1701,15 +1932,22 @@ function continueWithSamePictureAfterHundred() {
     return;
   }
   hundredPhotoReadyToStart = false;
-  resumeAfterHundredPhotoChange();
+  keepCurrentPhotoFullyRevealed = true;
+  resumeAfterHundredPhotoChange({ resetReveal: false });
 }
 
-function resumeAfterHundredPhotoChange() {
+function resumeAfterHundredPhotoChange(options) {
+  const settings = options || {};
+  const shouldResetReveal = settings.resetReveal !== false;
+
   hundredPhotoReadyToStart = false;
   backgroundSwapPending = false;
   pendingHundredScore = 0;
   hideHundredPhotoPrompt();
-  resetImageRevealPuzzle();
+  if (shouldResetReveal) {
+    keepCurrentPhotoFullyRevealed = false;
+    resetImageRevealPuzzle();
+  }
   restorePlayerAtHundredPosition();
   activateImagePickGodMode();
   gamePaused = false;
@@ -1999,6 +2237,10 @@ function maybeCollectMysteryBox() {
 }
 
 function getBottomColumnLabel() {
+  if (cloudScoresLoaded && cloudDailyLeaderKey) {
+    return cloudDailyLeaderKey === "chubson" ? "SON" : "DOO";
+  }
+
   const topEntry = getTopScores(1)[0];
   if (!topEntry || typeof topEntry.name !== "string") {
     return "DOO";
@@ -2232,12 +2474,32 @@ function updateTotalPointsForPlayer(name, roundScore) {
 }
 
 function getTotalPointsChartData() {
+  if (cloudScoresLoaded) {
+    return ["chubson", "chubdoo"].map(userKey => {
+      const daily = cloudDailyTotals[userKey] || createEmptyCloudDailyTotals()[userKey];
+      const lifetime = cloudLifetimeTotals[userKey] || createEmptyCloudLifetimeTotals()[userKey];
+      return {
+        userKey,
+        userName: FIXED_USER_ACCOUNTS[userKey].userName,
+        totalPoints: daily.totalPoints || 0,
+        gamesPlayed: daily.gamesPlayed || 0,
+        highScore: daily.highScore || 0,
+        lifetimePoints: lifetime.lifetimePoints || 0,
+        lifetimeGames: lifetime.lifetimeGames || 0,
+        lifetimeHighScore: lifetime.lifetimeHighScore || 0
+      };
+    });
+  }
+
   const totals = loadTotalPointsByUser();
   return ["chubson", "chubdoo"].map(userKey => ({
     userKey,
     userName: totals[userKey].userName,
     totalPoints: totals[userKey].totalPoints || 0,
-    gamesPlayed: totals[userKey].gamesPlayed || 0
+    gamesPlayed: totals[userKey].gamesPlayed || 0,
+    lifetimePoints: 0,
+    lifetimeGames: 0,
+    lifetimeHighScore: 0
   }));
 }
 
@@ -2379,6 +2641,7 @@ function resetRoundState() {
   speedMultiplier = 1;
   sizeMultiplier = 1;
   recalculateBirdSize();
+  keepCurrentPhotoFullyRevealed = false;
   resetImageRevealPuzzle();
   backgroundSwapPending = false;
   pendingHundredScore = 0;
@@ -2451,6 +2714,7 @@ function persistCurrentScore() {
   updateTotalPointsForPlayer(playerName, score);
   recordDailyActivity(playerName, score);
   saveScoreHistory();
+  saveScoreToServer(lastSavedEntry);
 
   // Refresh last-activity so this user's data won't expire for another 14 days.
   const actKey = getUserKey(playerName);
@@ -2557,6 +2821,9 @@ applyPauseButtonSidePreference();
 applyCurrentPlayerSprite();
 updateStartButtonLabel();
 updateHudVisibility();
+loadCloudScores();
+subscribeToCloudScores();
+setInterval(loadCloudScores, 15000);
 
 
 // ── Sound system ───────────────────────────────────────────────────────────
@@ -2982,7 +3249,7 @@ function drawTotalPointsPieChart(panelX, panelY, panelWidth, panelHeight) {
   ctx.textBaseline = "alphabetic";
   ctx.fillStyle = "#f8fafc";
   ctx.font = "900 " + titleFont + "px Arial";
-  ctx.fillText("Total Points Battle", panelX + panelWidth / 2, panelY + Math.round(clamp(22 * uiScale, 18, 28)));
+  ctx.fillText(cloudScoresLoaded ? "Cloud Daily Points Battle" : "Total Points Battle", panelX + panelWidth / 2, panelY + Math.round(clamp(22 * uiScale, 18, 28)));
 
   const radius = Math.round(clamp(Math.min(panelWidth * 0.18, panelHeight * 0.32), 38, 62));
   const centerX = panelX + Math.round(panelWidth * 0.29);
@@ -3050,10 +3317,32 @@ function drawTotalPointsPieChart(panelX, panelY, panelWidth, panelHeight) {
 
     ctx.fillStyle = "#cbd5e1";
     ctx.font = "700 " + labelFont + "px Arial";
-    ctx.fillText(item.totalPoints + " pts  •  " + pct + "%", legendX + 22, y + Math.round(clamp(16 * uiScale, 13, 19)));
+    ctx.fillText(item.totalPoints + " today  •  " + pct + "%", legendX + 22, y + Math.round(clamp(16 * uiScale, 13, 19)));
+
+    if (cloudScoresLoaded) {
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "700 " + Math.round(clamp(10 * uiScale, 8, 12)) + "px Arial";
+      ctx.fillText("Life: " + (item.lifetimePoints || 0) + " pts", legendX + 22, y + Math.round(clamp(30 * uiScale, 24, 34)));
+    }
   });
 
   ctx.restore();
+}
+
+function drawCloudScoreMiniHud(hudX, startY) {
+  const fontSize = Math.round(clamp(13 * uiScale, 11, 17));
+  const leaderName = cloudDailyLeaderKey ? FIXED_USER_ACCOUNTS[cloudDailyLeaderKey].userName : "Tie";
+  const dooPoints = cloudScoresLoaded ? (cloudDailyTotals.chubdoo.totalPoints || 0) : (loadTotalPointsByUser().chubdoo.totalPoints || 0);
+  const sonPoints = cloudScoresLoaded ? (cloudDailyTotals.chubson.totalPoints || 0) : (loadTotalPointsByUser().chubson.totalPoints || 0);
+  const label = (cloudScoresLoaded ? "Cloud Daily" : "Daily") + ": Doo " + dooPoints + " • Son " + sonPoints;
+
+  ctx.font = "800 " + fontSize + "px Arial";
+  ctx.fillStyle = "#111827";
+  ctx.fillText(label, hudX, startY);
+
+  ctx.font = "800 " + fontSize + "px Arial";
+  ctx.fillStyle = cloudScoresLoaded ? "#16a34a" : "#64748b";
+  ctx.fillText((cloudScoresLoaded ? "Leader: " : "Local leader: ") + leaderName, hudX, startY + Math.round(clamp(17 * uiScale, 14, 21)));
 }
 
 function draw() {
@@ -3173,6 +3462,8 @@ function draw() {
   ctx.fillStyle = "#dc2626";
   ctx.fillText(getActiveEffectLabel(), hudX + ctx.measureText(effectLabel).width, effectY);
 
+  drawCloudScoreMiniHud(hudX, effectY + Math.round(clamp(24 * uiScale, 20, 30)));
+
   if (gamePaused && !gameOver) {
     drawPausedOverlay();
   }
@@ -3229,7 +3520,7 @@ function draw() {
 
     ctx.fillStyle = "#f8fafc";
     ctx.font = "800 " + Math.round(clamp(16 * uiScale, 13, 20)) + "px Arial";
-    ctx.fillText("All-Time Top 3", centerX, tableTitleY);
+    ctx.fillText(cloudScoresLoaded ? "Daily Cloud Top 3" : "Daily Top 3", centerX, tableTitleY);
 
     ctx.fillStyle = "rgba(15,23,42,0.72)";
     ctx.fillRect(tableX, tableY, tableWidth, tableHeight);
