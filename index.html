@@ -923,7 +923,7 @@ let currentAttemptNumber = 0;
 let currentRoundTopScorerBonusGranted = false;
 const PENDING_CLOUD_SCORE_QUEUE_KEY = "inventorpath_pending_cloud_score_queue";
 const GAME_ATTEMPT_COUNT_KEY = "inventorpath_game_attempt_count";
-const PIPE_SETTINGS_VERSION = "difficulty_engine_v3_harder_flappy_style";
+const PIPE_SETTINGS_VERSION = "difficulty_engine_v4_min_max_gap_variation";
 
 
 function sanitizeName(name) {
@@ -1749,6 +1749,7 @@ function getDifficulty(rawScore) {
       gapSize: 200,
       pipeSpeed: 2.1,
       pipeSpacing: 300,
+      minGapMove: 35,
       maxGapMove: 100
     };
   }
@@ -1759,6 +1760,7 @@ function getDifficulty(rawScore) {
       gapSize: 180,
       pipeSpeed: 2.35,
       pipeSpacing: 285,
+      minGapMove: 45,
       maxGapMove: 125
     };
   }
@@ -1769,6 +1771,7 @@ function getDifficulty(rawScore) {
       gapSize: 160,
       pipeSpeed: 2.65,
       pipeSpacing: 265,
+      minGapMove: 55,
       maxGapMove: 150
     };
   }
@@ -1779,6 +1782,7 @@ function getDifficulty(rawScore) {
       gapSize: 145,
       pipeSpeed: 2.9,
       pipeSpacing: 250,
+      minGapMove: 65,
       maxGapMove: 170
     };
   }
@@ -1788,6 +1792,7 @@ function getDifficulty(rawScore) {
     gapSize: 135,
     pipeSpeed: 3.1,
     pipeSpacing: 240,
+    minGapMove: 75,
     maxGapMove: 190
   };
 }
@@ -1810,12 +1815,23 @@ function createNextGap(previousGapY, scoreValue, canvasHeight) {
     return randomBetween(centerBandMin, centerBandMax);
   }
 
-  // V40: harder vertical variation. Most pipes use the difficulty move range,
-  // with an occasional bigger-but-still-clamped move so the path feels less flat.
+  // V41: min/max vertical movement keeps gaps more random without becoming unfair.
+  // Every pipe must move at least minGapMove pixels from the previous gap,
+  // while maxGapMove prevents impossible top-to-bottom jumps.
   const variationBoost = Math.random() < 0.22 ? 1.28 : 1.0;
-  const moveLimit = d.maxGapMove * variationBoost;
-  const change = randomBetween(-moveLimit, moveLimit);
-  const nextGapY = previousGapY + change;
+  const minMove = d.minGapMove;
+  const maxMove = d.maxGapMove * variationBoost;
+  const moveAmount = randomBetween(minMove, maxMove);
+  const direction = Math.random() < 0.5 ? -1 : 1;
+  let nextGapY = previousGapY + direction * moveAmount;
+
+  // If the chosen direction hits the top/bottom clamp too hard, try the opposite direction.
+  // This keeps the random movement noticeable even near the screen edges.
+  const clampedGapY = clamp(nextGapY, minGapY, maxGapY);
+  if (Math.abs(clampedGapY - previousGapY) < minMove * 0.55) {
+    nextGapY = previousGapY - direction * moveAmount;
+  }
+
   return clamp(nextGapY, minGapY, maxGapY);
 }
 
