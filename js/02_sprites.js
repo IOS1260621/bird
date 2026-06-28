@@ -64,7 +64,7 @@ let bird = {
 bird.x = Math.max(70, Math.min(100, gameWidth * 0.2));
 
 function recalculateBirdSize() {
-  bird.size = Math.max(0, Math.round(bird.baseSize * sizeMultiplier));
+  bird.size = Math.max(0, Math.round(bird.baseSize * sizeMultiplier * getEffectiveBruceSizeMultiplier()));
 }
 
 function applyPhysicsTuning() {
@@ -157,12 +157,18 @@ function getDifficulty(rawScore) {
   };
 }
 
+
+const baseGetDifficulty = getDifficulty;
+getDifficulty = function(rawScore) {
+  return applyDeveloperDifficultySettings(baseGetDifficulty(rawScore));
+};
+
 function getTargetPipeSpacing(difficulty) {
   // V45: horizontal spacing is based on screen width, targeting about 3 full
   // column/gap sets visible at once. Column width is 20% smaller than V43.
   // This does not change the vertical gap opening size.
   const visibleGapSetsTarget = 3.0;
-  const pipeWidth = GAME_CONFIG.pipeWidth || 68.4;
+  const pipeWidth = getEffectivePipeWidth();
   const spacingFromScreen = (gameWidth + pipeWidth) / visibleGapSetsTarget;
 
   // Guardrails keep very small screens playable while still allowing about
@@ -175,7 +181,7 @@ function getTargetPipeSpacing(difficulty) {
 
 function getVisibleGapSetsEstimate(spacing) {
   const safeSpacing = Math.max(1, Number(spacing) || 1);
-  return (gameWidth + (GAME_CONFIG.pipeWidth || 68.4)) / safeSpacing;
+  return (gameWidth + getEffectivePipeWidth()) / safeSpacing;
 }
 
 const GAP_PATTERNS = [

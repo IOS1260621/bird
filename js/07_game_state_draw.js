@@ -11,6 +11,8 @@ function resetRoundState() {
   totalPipesCreated = 0;
   lastPipeGapY = Number.NaN;
   currentRoundTopScorerBonusGranted = false;
+  currentRoundIsDevMode = false;
+  currentRoundDevSettingsSnapshot = null;
   resetGapPatternState();
   mysteryBox = null;
   lastRoundEffectLabel = "None";
@@ -55,7 +57,11 @@ function startGame() {
   }
   chooseRandomSprite();
   currentAttemptNumber = getNextAttemptNumber();
+  const devModeAtStart = isDeveloperModeActive();
+  const devSettingsAtStart = getCurrentDevSettings();
   resetRoundState();
+  currentRoundIsDevMode = devModeAtStart;
+  currentRoundDevSettingsSnapshot = devSettingsAtStart;
   placeBruceAtCenterForImageReveal();
   activateImagePickGodMode();
   grantTopScorerStartingGodMode();
@@ -89,6 +95,37 @@ function persistCurrentScore() {
   }
 
   scoreSavedForRound = true;
+
+  if (isRoundDevMode()) {
+    const difficultyAtDeath = getDifficulty(score);
+    lastSavedEntry = {
+      name: playerName,
+      score,
+      playedAt: new Date().toISOString(),
+      selectedCharacter: currentSprite,
+      pipeSettingsVersion: PIPE_SETTINGS_VERSION,
+      difficultyPhaseAtDeath: difficultyAtDeath.name,
+      deathScore: score,
+      deathPipeNumber: totalPipesCreated,
+      deviceType: getDeviceType(),
+      attemptNumber: currentAttemptNumber,
+      backgroundPhotoMode: shouldUseBackgroundPhoto() ? "photo_reveal" : "no_background",
+      godModeBonusUsed: currentRoundTopScorerBonusGranted,
+      mysteryEffectAtDeath: deathEffectLabel || getEffectLabelForDeath(),
+      gapPatternAtDeath: lastGapPatternName || currentGapPatternName || "None",
+      patternDifficultyAtDeath: Math.max(0, Math.floor(Number(lastGapPatternDifficulty || currentGapPatternDifficulty) || 0)),
+      devMode: true,
+      devSettings: currentRoundDevSettingsSnapshot || getCurrentDevSettings()
+    };
+    cloudLastSaveStatus = "DEV MODE: score not saved";
+    cloudLastSavedScoreText = "Admin test score not saved: " + playerName + " " + score;
+    cloudLastErrorDetail = "Developer Mode was active. This score does not count.";
+    renderScoreHistory();
+    applyCurrentPlayerSprite();
+    draw();
+    return;
+  }
+
   const difficultyAtDeath = getDifficulty(score);
   lastSavedEntry = {
     name: playerName,

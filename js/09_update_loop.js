@@ -1,7 +1,7 @@
 // ── Update loop ────────────────────────────────────────────────────────────
 function createPipe() {
   const difficulty = getDifficulty(score);
-  const gap = Math.max(120, difficulty.gapSize);
+  const gap = Math.max(70, difficulty.gapSize);
   const gapCenterY = createNextGap(lastPipeGapY, score, gameHeight);
   const topHeight = gapCenterY - gap / 2;
 
@@ -10,7 +10,7 @@ function createPipe() {
   pipes.push({
     id: totalPipesCreated,
     x: gameWidth,
-    width: GAME_CONFIG.pipeWidth,
+    width: getEffectivePipeWidth(),
     top: topHeight,
     bottom: topHeight + gap,
     passed: false,
@@ -31,7 +31,7 @@ function update() {
   maybeExpireEffect();
 
   const difficulty = getDifficulty(score);
-  const pipeSpeed = difficulty.pipeSpeed * getPipeSpeedMultiplier();
+  const pipeSpeed = difficulty.pipeSpeed * getPipeSpeedMultiplier() * getEffectiveGameSpeedMultiplier();
   const spawnSpacing = getTargetPipeSpacing(difficulty);
 
   bird.velocity += bird.gravity;
@@ -57,9 +57,13 @@ function update() {
       bird.x - collisionRadius < pipe.x + pipe.width &&
       (bird.y - collisionRadius < pipe.top || bird.y + collisionRadius > pipe.bottom);
 
-    if (!hasGodModeActive() && pipeCollision) {
-      if (!tryActivateGodModeShield({ type: "pipe", pipe })) {
-        setGameOver();
+    if (pipeCollision) {
+      if (isDeveloperGodModeEnabledForRound()) {
+        rescueFromDeath({ type: "pipe", pipe });
+      } else if (!hasGodModeActive()) {
+        if (!tryActivateGodModeShield({ type: "pipe", pipe })) {
+          setGameOver();
+        }
       }
     }
   });
@@ -83,7 +87,9 @@ function update() {
 
   const boundaryCollision = bird.y + collisionRadius > gameHeight || bird.y - collisionRadius < 0;
   if (boundaryCollision) {
-    if (hasGodModeActive()) {
+    if (isDeveloperGodModeEnabledForRound()) {
+      rescueFromDeath({ type: "boundary" });
+    } else if (hasGodModeActive()) {
       rescueFromDeath({ type: "boundary" });
     } else if (!tryActivateGodModeShield({ type: "boundary" })) {
       setGameOver();

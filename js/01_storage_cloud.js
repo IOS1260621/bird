@@ -437,6 +437,14 @@ async function saveScoreToServer(entry, options) {
     return false;
   }
 
+  if (entry.devMode === true || entry.adminMode === true) {
+    cloudLastSaveStatus = "Cloud save skipped: Developer Mode score";
+    cloudLastSavedScoreText = "Admin test score not saved.";
+    cloudLastErrorDetail = "Developer Mode scores do not count toward daily or lifetime stats.";
+    draw();
+    return false;
+  }
+
   if (!isSupabaseRestConfigured()) {
     cloudLastSaveStatus = "Cloud save skipped: Supabase not configured";
     cloudLastErrorDetail = cloudLastSaveStatus;

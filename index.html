@@ -36,6 +36,45 @@
         <label for="pauseRightCheckbox">Make pause button on right</label>
       </div>
       <button class="secondary-button" id="todayScoresButton" type="button">Scores</button>
+
+      <div class="dev-login-box" id="devLoginBox">
+        <div class="dev-section-title">Developer Mode</div>
+        <div class="dev-login-grid">
+          <input id="devUsernameInput" type="text" autocomplete="off" placeholder="Username" aria-label="Developer username">
+          <input id="devPasswordInput" type="password" autocomplete="off" placeholder="Password" aria-label="Developer password">
+        </div>
+        <button class="secondary-button dev-unlock-button" id="devUnlockButton" type="button">Unlock Developer Mode</button>
+        <div class="dev-mode-status" id="devModeStatus">Developer Mode locked.</div>
+      </div>
+
+      <div class="dev-controls" id="devControls" style="display:none;">
+        <div class="dev-warning">DEV MODE ON — scores will not be saved.</div>
+        <div class="dev-param-row">
+          <label for="devGameSpeedInput">Game Speed</label>
+          <input id="devGameSpeedInput" type="number" min="-90" max="300" step="1" value="0">
+        </div>
+        <div class="dev-param-row">
+          <label for="devBruceSizeInput">Bruce Size</label>
+          <input id="devBruceSizeInput" type="number" min="-90" max="300" step="1" value="0">
+        </div>
+        <div class="dev-param-row">
+          <label for="devGapWidthInput">Gap Width</label>
+          <input id="devGapWidthInput" type="number" min="-90" max="300" step="1" value="0">
+        </div>
+        <div class="dev-param-row">
+          <label for="devGapHeightInput">Gap Height</label>
+          <input id="devGapHeightInput" type="number" min="-90" max="300" step="1" value="0">
+        </div>
+        <div class="dev-param-row dev-checkbox-row">
+          <label for="devGodModeCheckbox">GM</label>
+          <input id="devGodModeCheckbox" type="checkbox">
+        </div>
+        <div class="dev-button-row">
+          <button class="secondary-button" id="devResetButton" type="button">Reset Dev Settings</button>
+          <button class="secondary-button" id="devExitButton" type="button">Exit Dev Mode</button>
+        </div>
+        <div class="dev-help-text">Use -10 for 10% less, +10 for 10% more. Admin scores do not count.</div>
+      </div>
     </div>
   </details>
   <div class="sprite-hint" id="spriteHint"></div>
@@ -79,6 +118,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/00_dom_config.js"></script>
+<script src="js/01_dev_settings.js"></script>
 <script src="js/01_storage_cloud.js"></script>
 <script src="js/02_sprites.js"></script>
 <script src="js/03_photo_reveal.js"></script>
