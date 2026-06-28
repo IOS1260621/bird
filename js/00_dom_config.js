@@ -83,7 +83,7 @@ const GAME_CONFIG = {
   jumpHeightDivisor: 980,
   jumpMin: 7.8,
   jumpMax: 8.9,
-  pipeWidth: 85.5,
+  pipeWidth: 68.4,
   pipeSpeedBase: 2.7,
   pipeSpeedDifficultyStep: 0.03,
   pipeSpeedGlobalMultiplier: 0.7,
@@ -228,7 +228,7 @@ let lastGapPatternName = "None";
 let lastGapPatternDifficulty = 0;
 const PENDING_CLOUD_SCORE_QUEUE_KEY = "inventorpath_pending_cloud_score_queue";
 const GAME_ATTEMPT_COUNT_KEY = "inventorpath_game_attempt_count";
-const PIPE_SETTINGS_VERSION = "difficulty_engine_v6_visible_gap_count_2_5";
+const PIPE_SETTINGS_VERSION = "difficulty_engine_v8_column_width_20_percent_smaller_3_visible_sets";
 
 
 function sanitizeName(name) {

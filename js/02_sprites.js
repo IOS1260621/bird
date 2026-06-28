@@ -158,23 +158,24 @@ function getDifficulty(rawScore) {
 }
 
 function getTargetPipeSpacing(difficulty) {
-  // V43: horizontal spacing is based on screen width, so about 2.5 pipe gap sets
-  // are visible at once. This replaces fixed per-phase spacing numbers while
-  // keeping the difficulty engine responsible for gap size, speed, and patterns.
-  const visibleGapSetsTarget = 2.5;
-  const pipeWidth = GAME_CONFIG.pipeWidth || 85.5;
+  // V45: horizontal spacing is based on screen width, targeting about 3 full
+  // column/gap sets visible at once. Column width is 20% smaller than V43.
+  // This does not change the vertical gap opening size.
+  const visibleGapSetsTarget = 3.0;
+  const pipeWidth = GAME_CONFIG.pipeWidth || 68.4;
   const spacingFromScreen = (gameWidth + pipeWidth) / visibleGapSetsTarget;
 
-  // Guardrails keep very small screens playable and very large screens from becoming empty.
-  const minimumSpacing = Math.max(pipeWidth + 72, 170);
-  const maximumSpacing = Math.max(minimumSpacing, gameWidth * 0.58);
+  // Guardrails keep very small screens playable while still allowing about
+  // 3 visible sets on normal phone screens.
+  const minimumSpacing = Math.max(pipeWidth + 58, 145);
+  const maximumSpacing = Math.max(minimumSpacing, gameWidth * 0.52);
 
   return Math.round(clamp(spacingFromScreen, minimumSpacing, maximumSpacing));
 }
 
 function getVisibleGapSetsEstimate(spacing) {
   const safeSpacing = Math.max(1, Number(spacing) || 1);
-  return (gameWidth + (GAME_CONFIG.pipeWidth || 85.5)) / safeSpacing;
+  return (gameWidth + (GAME_CONFIG.pipeWidth || 68.4)) / safeSpacing;
 }
 
 const GAP_PATTERNS = [
