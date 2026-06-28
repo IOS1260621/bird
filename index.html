@@ -2,16 +2,11 @@
 <html>
 <head>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-  <title>Bouncing Bruce V34</title>
+  <title>Bouncing Bruce V31</title>
   <style>
     html, body {
       width: 100%;
       height: 100%;
-      min-height: 100%;
-      margin: 0;
-      overflow: hidden;
-      position: fixed;
-      inset: 0;
     }
     body {
       margin: 0;
@@ -22,17 +17,13 @@
       overscroll-behavior: none;
       -webkit-user-select: none;
       user-select: none;
-      -webkit-text-size-adjust: 100%;
     }
     canvas {
-      position: fixed;
-      inset: 0;
       display: block;
-      margin: 0;
+      margin: auto;
       width: 100vw;
-      height: 100vh;
+      height: 100dvh;
       background: linear-gradient(#70c5ce, #ffffff);
-      touch-action: none;
     }
     .hud-panel {
       position: fixed;
@@ -471,7 +462,7 @@
 <div class="hud-panel" id="hudPanel">
   <div class="game-title" id="gameTitle" aria-label="Bouncing Bruce Version 31">
     <div class="game-title-main">Bouncing Bruce</div>
-    <div class="game-title-sub">Version 31 Cloud Scores</div>
+    <div class="game-title-sub">Version 36 Cloud Scores</div>
   </div>
   <div class="selected-sprite-preview" id="selectedSpritePreview" aria-live="polite">
     <img id="selectedSpritePreviewImage" alt="Selected Bruce sprite preview">
@@ -666,10 +657,6 @@ const MS_PER_DAY = 86400000;
 let gameWidth = 0;
 let gameHeight = 0;
 let uiScale = 1;
-let canvasResizeLocked = false;
-let lockedViewportWidth = 0;
-let lockedViewportHeight = 0;
-let lastOrientationKey = "";
 
 let pipes = [];
 let score = 0;
@@ -715,6 +702,7 @@ let cloudLastLoadStatus = "Cloud load: not loaded yet";
 let cloudLastSavedScoreText = "";
 let cloudLastErrorDetail = "";
 let pendingCloudScoreQueue = [];
+let cloudRefreshPendingAfterRound = false;
 const PENDING_CLOUD_SCORE_QUEUE_KEY = "inventorpath_pending_cloud_score_queue";
 
 
@@ -1104,7 +1092,31 @@ function getCloudStatusText() {
   return cloudScoresLoaded ? "Cloud connected" : "Cloud not loaded";
 }
 
+function isActiveRoundInProgress() {
+  return Boolean(gameStarted && !gameOver && !gamePaused && !backgroundSwapPending);
+}
+
+function requestCloudScoreRefresh() {
+  if (isActiveRoundInProgress()) {
+    cloudRefreshPendingAfterRound = true;
+    return;
+  }
+  loadCloudScores().then(() => retryPendingCloudScores());
+}
+
+function refreshCloudScoresAfterRoundIfNeeded() {
+  if (cloudRefreshPendingAfterRound && !isActiveRoundInProgress()) {
+    cloudRefreshPendingAfterRound = false;
+    loadCloudScores().then(() => retryPendingCloudScores());
+  }
+}
+
 async function loadCloudScores() {
+  if (isActiveRoundInProgress()) {
+    cloudRefreshPendingAfterRound = true;
+    return;
+  }
+
   if (!isSupabaseRestConfigured()) {
     cloudScoresLoaded = false;
     cloudLastLoadStatus = "Cloud not configured";
@@ -1238,7 +1250,7 @@ function subscribeToCloudScores() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "game_scores" },
-        () => loadCloudScores()
+        () => requestCloudScoreRefresh()
       )
       .subscribe();
   } catch (error) {
@@ -1378,25 +1390,10 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function getWindowOrientationKey() {
-  return window.innerWidth >= window.innerHeight ? "landscape" : "portrait";
-}
-
-function getCurrentViewportSize() {
-  return {
-    width: Math.max(1, Math.round(window.innerWidth || document.documentElement.clientWidth || 390)),
-    height: Math.max(1, Math.round(window.innerHeight || document.documentElement.clientHeight || 844))
-  };
-}
-
-function setCanvasSize(options = {}) {
-  // V34: while a round is active, use a locked pixel height so mobile
-  // browser bars cannot make the game jump up/down during taps.
-  const viewport = getCurrentViewportSize();
-  const useLockedSize = canvasResizeLocked && lockedViewportWidth > 0 && lockedViewportHeight > 0;
-  gameWidth = useLockedSize ? lockedViewportWidth : viewport.width;
-  gameHeight = useLockedSize ? lockedViewportHeight : viewport.height;
-  lastOrientationKey = getWindowOrientationKey();
+function setCanvasSize() {
+  // Match iPhone's dynamic viewport height and render sharply on retina screens.
+  gameWidth = window.innerWidth;
+  gameHeight = window.innerHeight;
 
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.style.width = gameWidth + "px";
@@ -1406,63 +1403,6 @@ function setCanvasSize(options = {}) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
   uiScale = clamp(Math.min(gameWidth / 390, gameHeight / 844), 0.85, 1.2);
-}
-
-function lockCanvasSizeForRound() {
-  const viewport = getCurrentViewportSize();
-  lockedViewportWidth = viewport.width;
-  lockedViewportHeight = viewport.height;
-  canvasResizeLocked = true;
-  setCanvasSize({ force: true });
-}
-
-function unlockCanvasSize() {
-  canvasResizeLocked = false;
-  lockedViewportWidth = 0;
-  lockedViewportHeight = 0;
-}
-
-function resizeGameToCurrentViewport() {
-  setCanvasSize({ force: true });
-  applyPhysicsTuning();
-
-  // Keep Bruce and current pipes valid after a real resize/orientation change.
-  bird.x = Math.max(70, Math.min(100, gameWidth * 0.2));
-  bird.y = Math.max(bird.size, Math.min(gameHeight - bird.size, bird.y));
-
-  pipes = pipes
-    .map(pipe => ({
-      ...pipe,
-      top: Math.max(40, Math.min(gameHeight - 210, pipe.top)),
-      bottom: Math.max(160, Math.min(gameHeight - 40, pipe.bottom))
-    }))
-    .filter(pipe => pipe.bottom - pipe.top >= 144);
-
-  draw();
-}
-
-function handleViewportResize() {
-  const viewport = getCurrentViewportSize();
-  const orientationKey = getWindowOrientationKey();
-  const activeRound = gameStarted && !gameOver;
-  const orientationChanged = orientationKey !== lastOrientationKey;
-  const widthDelta = Math.abs(viewport.width - gameWidth);
-
-  // Ignore height-only mobile browser bar changes during live gameplay.
-  // This is what caused the screen to jump up/down while tapping.
-  if (activeRound && canvasResizeLocked && !orientationChanged && widthDelta < 24) {
-    return;
-  }
-
-  if (activeRound && (orientationChanged || widthDelta >= 24)) {
-    lockedViewportWidth = viewport.width;
-    lockedViewportHeight = viewport.height;
-    canvasResizeLocked = true;
-  } else if (!activeRound) {
-    unlockCanvasSize();
-  }
-
-  resizeGameToCurrentViewport();
 }
 
 setCanvasSize();
@@ -2911,7 +2851,6 @@ function startGame() {
     alert("Choose a photo before starting the game.");
     return;
   }
-  lockCanvasSizeForRound();
   resetRoundState();
   placeBruceAtCenterForImageReveal();
   activateImagePickGodMode();
@@ -2987,6 +2926,7 @@ function setGameOver() {
   updateStartButtonLabel();
   updateHudVisibility();
   updatePauseButtonVisibility();
+  refreshCloudScoresAfterRoundIfNeeded();
 }
 
 
@@ -3074,8 +3014,12 @@ pendingCloudScoreQueue = loadPendingCloudScoreQueue();
 loadCloudScores().then(() => retryPendingCloudScores());
 subscribeToCloudScores();
 setInterval(() => {
+  if (isActiveRoundInProgress()) {
+    cloudRefreshPendingAfterRound = true;
+    return;
+  }
   loadCloudScores().then(() => retryPendingCloudScores());
-}, 15000);
+}, 30000);
 
 
 // ── Sound system ───────────────────────────────────────────────────────────
@@ -3208,21 +3152,37 @@ document.addEventListener("keydown", e => {
   }
 });
 
-window.addEventListener("resize", handleViewportResize);
-window.addEventListener("orientationchange", () => {
-  unlockCanvasSize();
-  window.setTimeout(handleViewportResize, 180);
-});
-if (window.visualViewport) {
-  window.visualViewport.addEventListener("resize", handleViewportResize);
+function resizeGameForViewportChange() {
+  const previousWidth = gameWidth;
+  const previousHeight = gameHeight;
+  const nextWidth = window.innerWidth;
+  const nextHeight = window.innerHeight;
+  const widthChanged = Math.abs(nextWidth - previousWidth) > 6;
+  const heightChanged = Math.abs(nextHeight - previousHeight) > 6;
+
+  // V36: ignore small mobile browser address-bar height changes during play.
+  // This keeps the old stable V30 layout, but avoids the recent up/down bounce.
+  if (gameStarted && !gameOver && !gamePaused && !widthChanged && heightChanged) {
+    return;
+  }
+
+  setCanvasSize();
+  applyPhysicsTuning();
+
+  // Keep bird position valid after iPhone orientation changes.
+  bird.x = Math.max(70, Math.min(100, gameWidth * 0.2));
+  bird.y = Math.max(bird.size, Math.min(gameHeight - bird.size, bird.y));
+
+  pipes = pipes
+    .map(pipe => ({
+      ...pipe,
+      top: Math.max(40, Math.min(gameHeight - 210, pipe.top)),
+      bottom: Math.max(160, Math.min(gameHeight - 40, pipe.bottom))
+    }))
+    .filter(pipe => pipe.bottom - pipe.top >= 144);
 }
 
-document.addEventListener("touchmove", event => {
-  // Prevent mobile browser rubber-band scrolling during gameplay.
-  if (!hudPanel.contains(event.target) && !(hundredPhotoModal && hundredPhotoModal.contains(event.target))) {
-    event.preventDefault();
-  }
-}, { passive: false });
+window.addEventListener("resize", resizeGameForViewportChange);
 
 // ── Update loop ────────────────────────────────────────────────────────────
 function createPipe() {
@@ -3577,11 +3537,11 @@ function drawTotalPointsPieChart(panelX, panelY, panelWidth, panelHeight) {
     }
   });
 
-  const statusText = cloudLastErrorDetail ? "Cloud issue — check Supabase" : (cloudScoresLoaded ? "Cloud connected" : "Local backup mode");
+  const statusText = getCloudStatusText();
   ctx.textAlign = "center";
   ctx.fillStyle = cloudLastErrorDetail ? "#fecaca" : "#bbf7d0";
-  ctx.font = "800 " + Math.round(clamp(9 * uiScale, 7, 11)) + "px Arial";
-  ctx.fillText(statusText, panelX + panelWidth / 2, panelY + panelHeight - Math.round(clamp(7 * uiScale, 5, 9)));
+  ctx.font = "800 " + Math.round(clamp(10 * uiScale, 8, 12)) + "px Arial";
+  ctx.fillText(statusText.slice(0, 70), panelX + panelWidth / 2, panelY + panelHeight - Math.round(clamp(7 * uiScale, 5, 9)));
 
   ctx.restore();
 }
@@ -3600,13 +3560,6 @@ function drawCloudScoreMiniHud(hudX, startY) {
   ctx.font = "800 " + fontSize + "px Arial";
   ctx.fillStyle = cloudScoresLoaded ? "#16a34a" : "#64748b";
   ctx.fillText((cloudScoresLoaded ? "Leader: " : "Local leader: ") + leaderName, hudX, startY + Math.round(clamp(17 * uiScale, 14, 21)));
-
-  // V34: keep the in-game cloud status small and non-distracting.
-  if (cloudLastErrorDetail) {
-    ctx.fillStyle = "#dc2626";
-    ctx.font = "800 " + Math.round(clamp(10 * uiScale, 8, 12)) + "px Arial";
-    ctx.fillText("Cloud issue", hudX, startY + Math.round(clamp(33 * uiScale, 27, 40)));
-  }
 }
 
 function draw() {
