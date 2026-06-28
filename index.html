@@ -921,9 +921,16 @@ let cloudRefreshPendingAfterRound = false;
 let lastPipeGapY = Number.NaN;
 let currentAttemptNumber = 0;
 let currentRoundTopScorerBonusGranted = false;
+let activeGapPattern = null;
+let activeGapPatternStepIndex = 0;
+let forceRecoveryPipe = false;
+let currentGapPatternName = "Random Drift";
+let currentGapPatternDifficulty = 0;
+let lastGapPatternName = "None";
+let lastGapPatternDifficulty = 0;
 const PENDING_CLOUD_SCORE_QUEUE_KEY = "inventorpath_pending_cloud_score_queue";
 const GAME_ATTEMPT_COUNT_KEY = "inventorpath_game_attempt_count";
-const PIPE_SETTINGS_VERSION = "difficulty_engine_v4_min_max_gap_variation";
+const PIPE_SETTINGS_VERSION = "difficulty_engine_v5_pattern_engine_v1";
 
 
 function sanitizeName(name) {
@@ -1443,7 +1450,9 @@ async function saveScoreToServer(entry, options) {
     attempt_number: Math.max(0, Math.floor(Number(entry.attemptNumber) || currentAttemptNumber || 0)),
     background_photo_mode: entry.backgroundPhotoMode || (shouldUseBackgroundPhoto() ? "photo_reveal" : "no_background"),
     god_mode_bonus_used: Boolean(entry.godModeBonusUsed),
-    mystery_effect_at_death: entry.mysteryEffectAtDeath || deathEffectLabel || "None"
+    mystery_effect_at_death: entry.mysteryEffectAtDeath || deathEffectLabel || "None",
+    gap_pattern_at_death: entry.gapPatternAtDeath || lastGapPatternName || currentGapPatternName || "None",
+    pattern_difficulty_at_death: Math.max(0, Math.floor(Number(entry.patternDifficultyAtDeath || lastGapPatternDifficulty || currentGapPatternDifficulty) || 0))
   };
 
   cloudLastSaveStatus = "Cloud save: saving " + payload.player_name + " " + cleanScore + "...";
@@ -1750,7 +1759,9 @@ function getDifficulty(rawScore) {
       pipeSpeed: 2.1,
       pipeSpacing: 300,
       minGapMove: 35,
-      maxGapMove: 100
+      maxGapMove: 100,
+      patternChance: 0.15,
+      maxPatternDifficulty: 1
     };
   }
 
@@ -1761,7 +1772,9 @@ function getDifficulty(rawScore) {
       pipeSpeed: 2.35,
       pipeSpacing: 285,
       minGapMove: 45,
-      maxGapMove: 125
+      maxGapMove: 125,
+      patternChance: 0.35,
+      maxPatternDifficulty: 2
     };
   }
 
@@ -1772,7 +1785,9 @@ function getDifficulty(rawScore) {
       pipeSpeed: 2.65,
       pipeSpacing: 265,
       minGapMove: 55,
-      maxGapMove: 150
+      maxGapMove: 150,
+      patternChance: 0.50,
+      maxPatternDifficulty: 3
     };
   }
 
@@ -1783,7 +1798,9 @@ function getDifficulty(rawScore) {
       pipeSpeed: 2.9,
       pipeSpacing: 250,
       minGapMove: 65,
-      maxGapMove: 170
+      maxGapMove: 170,
+      patternChance: 0.65,
+      maxPatternDifficulty: 4
     };
   }
 
@@ -1793,12 +1810,242 @@ function getDifficulty(rawScore) {
     pipeSpeed: 3.1,
     pipeSpacing: 240,
     minGapMove: 75,
-    maxGapMove: 190
+    maxGapMove: 190,
+    patternChance: 0.75,
+    maxPatternDifficulty: 5
   };
 }
 
+const GAP_PATTERNS = [
+  {
+    name: "Gentle Climb",
+    minScore: 8,
+    difficulty: 1,
+    weight: 18,
+    recoveryAfter: false,
+    moves: [-0.70, -0.80, -0.65]
+  },
+  {
+    name: "Gentle Drop",
+    minScore: 8,
+    difficulty: 1,
+    weight: 18,
+    recoveryAfter: false,
+    moves: [0.70, 0.80, 0.65]
+  },
+  {
+    name: "Steep Climb",
+    minScore: 20,
+    difficulty: 2,
+    weight: 13,
+    recoveryAfter: true,
+    moves: [-1.05, -1.10, -0.90]
+  },
+  {
+    name: "Steep Drop",
+    minScore: 20,
+    difficulty: 2,
+    weight: 13,
+    recoveryAfter: true,
+    moves: [1.05, 1.10, 0.90]
+  },
+  {
+    name: "Tent",
+    minScore: 25,
+    difficulty: 2,
+    weight: 14,
+    recoveryAfter: false,
+    moves: [-0.95, -0.85, 0.85, 0.95]
+  },
+  {
+    name: "Valley",
+    minScore: 25,
+    difficulty: 2,
+    weight: 14,
+    recoveryAfter: false,
+    moves: [0.95, 0.85, -0.85, -0.95]
+  },
+  {
+    name: "Climb Then Drop",
+    minScore: 35,
+    difficulty: 3,
+    weight: 11,
+    recoveryAfter: true,
+    moves: [-1.00, -0.95, 1.15, 0.75]
+  },
+  {
+    name: "Drop Then Climb",
+    minScore: 35,
+    difficulty: 3,
+    weight: 11,
+    recoveryAfter: true,
+    moves: [1.00, 0.95, -1.15, -0.75]
+  },
+  {
+    name: "U Flat Bottom",
+    minScore: 45,
+    difficulty: 4,
+    weight: 8,
+    recoveryAfter: true,
+    moves: [0.95, 0.80, 0.08, -0.08, -0.80, -0.95]
+  },
+  {
+    name: "N Flat Top",
+    minScore: 60,
+    difficulty: 4,
+    weight: 8,
+    recoveryAfter: true,
+    moves: [-0.95, -0.80, -0.08, 0.08, 0.80, 0.95, -0.65]
+  },
+  {
+    name: "Wave",
+    minScore: 70,
+    difficulty: 5,
+    weight: 6,
+    recoveryAfter: true,
+    moves: [-0.85, 0.85, -0.85, 0.85, -0.65]
+  },
+  {
+    name: "Tight Recovery Tunnel",
+    minScore: 90,
+    difficulty: 5,
+    weight: 5,
+    recoveryAfter: false,
+    moves: [0.12, -0.12, 0.15, -0.15]
+  }
+];
+
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
+}
+
+function weightedRandom(items) {
+  const totalWeight = items.reduce((sum, item) => sum + Math.max(0, Number(item.weight) || 0), 0);
+  if (totalWeight <= 0) {
+    return items[Math.floor(Math.random() * items.length)] || null;
+  }
+
+  let roll = Math.random() * totalWeight;
+  for (const item of items) {
+    roll -= Math.max(0, Number(item.weight) || 0);
+    if (roll <= 0) {
+      return item;
+    }
+  }
+  return items[items.length - 1] || null;
+}
+
+function chooseGapPattern(scoreValue, difficulty) {
+  if (Math.random() > difficulty.patternChance) {
+    return null;
+  }
+
+  const eligiblePatterns = GAP_PATTERNS.filter(pattern =>
+    scoreValue >= pattern.minScore && pattern.difficulty <= difficulty.maxPatternDifficulty
+  );
+
+  return weightedRandom(eligiblePatterns);
+}
+
+function resetGapPatternState() {
+  activeGapPattern = null;
+  activeGapPatternStepIndex = 0;
+  forceRecoveryPipe = false;
+  currentGapPatternName = "Random Drift";
+  currentGapPatternDifficulty = 0;
+  lastGapPatternName = "None";
+  lastGapPatternDifficulty = 0;
+}
+
+function beginGapPattern(pattern) {
+  activeGapPattern = pattern || null;
+  activeGapPatternStepIndex = 0;
+}
+
+function finishGapPatternIfDone() {
+  if (!activeGapPattern || activeGapPatternStepIndex < activeGapPattern.moves.length) {
+    return;
+  }
+
+  lastGapPatternName = activeGapPattern.name;
+  lastGapPatternDifficulty = activeGapPattern.difficulty;
+  if (activeGapPattern.recoveryAfter) {
+    forceRecoveryPipe = true;
+  }
+  activeGapPattern = null;
+  activeGapPatternStepIndex = 0;
+}
+
+function createRandomDriftMove(difficulty) {
+  const variationBoost = Math.random() < 0.22 ? 1.28 : 1.0;
+  const minMove = difficulty.minGapMove;
+  const maxMove = difficulty.maxGapMove * variationBoost;
+  const moveAmount = randomBetween(minMove, maxMove);
+  const direction = Math.random() < 0.5 ? -1 : 1;
+  currentGapPatternName = "Random Drift";
+  currentGapPatternDifficulty = 0;
+  return direction * moveAmount;
+}
+
+function createPatternMove(difficulty) {
+  if (!activeGapPattern) {
+    return createRandomDriftMove(difficulty);
+  }
+
+  const pattern = activeGapPattern;
+  const step = pattern.moves[activeGapPatternStepIndex] || 0;
+  activeGapPatternStepIndex += 1;
+
+  currentGapPatternName = pattern.name;
+  currentGapPatternDifficulty = pattern.difficulty;
+
+  const variationBoost = Math.random() < 0.18 ? 1.18 : 1.0;
+  const baseMove = randomBetween(difficulty.minGapMove, difficulty.maxGapMove) * variationBoost;
+  const flatJitter = randomBetween(-difficulty.minGapMove * 0.20, difficulty.minGapMove * 0.20);
+  const move = Math.abs(step) < 0.20 ? flatJitter : step * baseMove;
+
+  finishGapPatternIfDone();
+  return move;
+}
+
+function createRecoveryMove(previousGapY, canvasHeight, difficulty) {
+  const targetY = canvasHeight * 0.50;
+  const deltaToCenter = targetY - previousGapY;
+  const direction = deltaToCenter >= 0 ? 1 : -1;
+  const absDelta = Math.abs(deltaToCenter);
+
+  forceRecoveryPipe = false;
+  currentGapPatternName = "Recovery";
+  currentGapPatternDifficulty = 0;
+
+  if (absDelta < difficulty.minGapMove * 0.65) {
+    return createRandomDriftMove(difficulty) * 0.45;
+  }
+
+  const recoveryMove = clamp(absDelta, difficulty.minGapMove * 0.75, difficulty.maxGapMove * 0.72);
+  return direction * recoveryMove;
+}
+
+function applyGapMoveWithEdgeProtection(previousGapY, change, minGapY, maxGapY, difficulty) {
+  let nextGapY = previousGapY + change;
+
+  if (nextGapY < minGapY || nextGapY > maxGapY) {
+    // If the chosen pattern/random move would hit the screen edge, bounce partway
+    // in the opposite direction instead of creating an unfair edge-clamped gap.
+    nextGapY = previousGapY - change * 0.62;
+  }
+
+  nextGapY = clamp(nextGapY, minGapY, maxGapY);
+
+  // If the move became too small after clamping, push it toward the center.
+  const visibleMove = Math.abs(nextGapY - previousGapY);
+  if (visibleMove < difficulty.minGapMove * 0.45) {
+    const centerY = (minGapY + maxGapY) / 2;
+    const directionToCenter = centerY >= previousGapY ? 1 : -1;
+    nextGapY = clamp(previousGapY + directionToCenter * difficulty.minGapMove, minGapY, maxGapY);
+  }
+
+  return nextGapY;
 }
 
 function createNextGap(previousGapY, scoreValue, canvasHeight) {
@@ -1808,31 +2055,28 @@ function createNextGap(previousGapY, scoreValue, canvasHeight) {
   const maxGapY = canvasHeight - d.gapSize / 2 - safetyMargin;
 
   if (!Number.isFinite(previousGapY)) {
-    // Start the first pipe in a safe center band, but not always dead center.
-    // This keeps the first obstacle fair while making each round feel less identical.
+    resetGapPatternState();
     const centerBandMin = Math.max(minGapY, canvasHeight * 0.36);
     const centerBandMax = Math.min(maxGapY, canvasHeight * 0.64);
+    currentGapPatternName = "Round Start";
+    currentGapPatternDifficulty = 0;
     return randomBetween(centerBandMin, centerBandMax);
   }
 
-  // V41: min/max vertical movement keeps gaps more random without becoming unfair.
-  // Every pipe must move at least minGapMove pixels from the previous gap,
-  // while maxGapMove prevents impossible top-to-bottom jumps.
-  const variationBoost = Math.random() < 0.22 ? 1.28 : 1.0;
-  const minMove = d.minGapMove;
-  const maxMove = d.maxGapMove * variationBoost;
-  const moveAmount = randomBetween(minMove, maxMove);
-  const direction = Math.random() < 0.5 ? -1 : 1;
-  let nextGapY = previousGapY + direction * moveAmount;
-
-  // If the chosen direction hits the top/bottom clamp too hard, try the opposite direction.
-  // This keeps the random movement noticeable even near the screen edges.
-  const clampedGapY = clamp(nextGapY, minGapY, maxGapY);
-  if (Math.abs(clampedGapY - previousGapY) < minMove * 0.55) {
-    nextGapY = previousGapY - direction * moveAmount;
+  if (!activeGapPattern && !forceRecoveryPipe) {
+    beginGapPattern(chooseGapPattern(scoreValue, d));
   }
 
-  return clamp(nextGapY, minGapY, maxGapY);
+  let change;
+  if (forceRecoveryPipe) {
+    change = createRecoveryMove(previousGapY, canvasHeight, d);
+  } else if (activeGapPattern) {
+    change = createPatternMove(d);
+  } else {
+    change = createRandomDriftMove(d);
+  }
+
+  return applyGapMoveWithEdgeProtection(previousGapY, change, minGapY, maxGapY, d);
 }
 
 function getDeviceType() {
@@ -3355,6 +3599,7 @@ function resetRoundState() {
   totalPipesCreated = 0;
   lastPipeGapY = Number.NaN;
   currentRoundTopScorerBonusGranted = false;
+  resetGapPatternState();
   mysteryBox = null;
   lastRoundEffectLabel = "None";
   deathEffectLabel = "None";
@@ -3446,7 +3691,9 @@ function persistCurrentScore() {
     attemptNumber: currentAttemptNumber,
     backgroundPhotoMode: shouldUseBackgroundPhoto() ? "photo_reveal" : "no_background",
     godModeBonusUsed: currentRoundTopScorerBonusGranted,
-    mysteryEffectAtDeath: deathEffectLabel || getEffectLabelForDeath()
+    mysteryEffectAtDeath: deathEffectLabel || getEffectLabelForDeath(),
+    gapPatternAtDeath: lastGapPatternName || currentGapPatternName || "None",
+    patternDifficultyAtDeath: Math.max(0, Math.floor(Number(lastGapPatternDifficulty || currentGapPatternDifficulty) || 0))
   };
   scoreHistory.unshift(lastSavedEntry);
   scoreHistory = scoreHistory.slice(0, GAME_CONFIG.maxScoreHistoryEntries);
@@ -3783,8 +4030,12 @@ function createPipe() {
     bottom: topHeight + gap,
     passed: false,
     difficultyPhase: difficulty.name,
-    pipeSettingsVersion: PIPE_SETTINGS_VERSION
+    pipeSettingsVersion: PIPE_SETTINGS_VERSION,
+    gapPattern: currentGapPatternName,
+    gapPatternDifficulty: currentGapPatternDifficulty
   });
+  lastGapPatternName = currentGapPatternName;
+  lastGapPatternDifficulty = currentGapPatternDifficulty;
 }
 
 
