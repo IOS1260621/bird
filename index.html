@@ -593,13 +593,63 @@
       transform: translateY(1px);
     }
 
+    .settings-panel {
+      margin-bottom: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(15, 23, 42, 0.18);
+      border-radius: 14px;
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
+      backdrop-filter: blur(4px);
+      overflow: hidden;
+    }
+    .settings-panel summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 14px;
+      color: #0f172a;
+      font-size: 14px;
+      font-weight: 950;
+      text-align: center;
+      user-select: none;
+    }
+    .settings-panel summary::-webkit-details-marker {
+      display: none;
+    }
+    .settings-panel summary::after {
+      content: " ▾";
+      font-weight: 900;
+    }
+    .settings-panel[open] summary::after {
+      content: " ▴";
+    }
+    .settings-content {
+      padding: 0 10px 10px;
+    }
+    .settings-content .hud-row {
+      box-shadow: none;
+      margin-bottom: 8px;
+      background: rgba(255, 255, 255, 0.95);
+    }
+    .settings-content .secondary-button {
+      margin-top: 0;
+      min-height: 42px;
+      font-size: 14px;
+      font-weight: 950;
+      border-radius: 12px;
+    }
+    #spriteToolsRow,
+    #noBackgroundRow,
+    #startGameButton,
+    #startStatusMessage {
+      display: none !important;
+    }
+
   </style>
 </head>
 <body>
 <div class="hud-panel" id="hudPanel">
-  <div class="game-title" id="gameTitle" aria-label="Bouncing Bruce Version 31">
-    <div class="game-title-main">Bouncing Bruce</div>
-    <div class="game-title-sub">Version 37 Cloud Scores</div>
+  <div class="game-title" id="gameTitle" aria-label="BOUNCING BRUCE">
+    <div class="game-title-main">BOUNCING BRUCE</div>
   </div>
   <div class="selected-sprite-preview" id="selectedSpritePreview" aria-live="polite">
     <img id="selectedSpritePreviewImage" alt="Selected Bruce sprite preview">
@@ -609,29 +659,31 @@
     <button class="player-choice-button" id="chooseChubdooButton" type="button">Chubdoo</button>
     <button class="player-choice-button" id="chooseChubsonButton" type="button">Chubson</button>
   </div>
-  <div class="sprite-tools-row" id="spriteToolsRow">
+  <div class="sprite-tools-row" id="spriteToolsRow" style="display:none;">
     <button class="sprite-tool-button" id="randomSpriteButton" type="button">Random Bruce</button>
     <button class="sprite-tool-button" id="resetSpriteButton" type="button">Reset Bruce</button>
   </div>
-  <div class="hud-row image-upload-row" id="imageUploadRow">
-    <label for="imageUploadInput">Photo</label>
-    <input id="imageUploadInput" type="file" accept="image/*" aria-label="Choose photo from your phone">
-  </div>
-  <div class="hud-row no-background-row" id="noBackgroundRow">
-    <input id="noBackgroundPhotoCheckbox" type="checkbox">
-    <label for="noBackgroundPhotoCheckbox">No background photo</label>
-  </div>
-  <div class="image-upload-name" id="imageUploadName"></div>
-  <div class="hud-row pause-side-row" id="pauseSideRow">
-    <input id="pauseRightCheckbox" type="checkbox">
-    <label for="pauseRightCheckbox">Make pause button on right</label>
-  </div>
+  <input id="noBackgroundPhotoCheckbox" type="checkbox" checked style="display:none;" aria-hidden="true">
+  <details class="settings-panel" id="settingsPanel">
+    <summary>Settings</summary>
+    <div class="settings-content">
+      <div class="hud-row image-upload-row" id="imageUploadRow">
+        <label for="imageUploadInput">Photo Reveal</label>
+        <input id="imageUploadInput" type="file" accept="image/*" aria-label="Choose photo from your phone">
+      </div>
+      <div class="image-upload-name" id="imageUploadName"></div>
+      <div class="hud-row pause-side-row" id="pauseSideRow">
+        <input id="pauseRightCheckbox" type="checkbox">
+        <label for="pauseRightCheckbox">Make pause button on right</label>
+      </div>
+      <button class="secondary-button" id="todayScoresButton" type="button">Scores</button>
+    </div>
+  </details>
   <div class="sprite-hint" id="spriteHint"></div>
   <div class="score-list-title" id="scoreListTitle"></div>
   <ol class="score-list" id="scoreList"></ol>
   <div class="hud-actions">
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
-    <button class="secondary-button" id="todayScoresButton" type="button">Today Scores</button>
     <div class="start-status" id="startStatusMessage"></div>
   </div>
   <div class="asset-warning" id="assetWarning"></div>
@@ -639,7 +691,7 @@
 
 <div class="today-scores-modal" id="todayScoresModal" aria-live="polite">
   <div class="today-scores-card">
-    <div class="today-scores-title">Today Scores</div>
+    <div class="today-scores-title">Scores</div>
     <div class="today-scores-subtitle" id="todayScoresSubtitle">Cloud daily scores</div>
     <div id="todayScoresContent">Loading scores...</div>
     <div class="today-scores-actions">
@@ -727,7 +779,7 @@ const supabaseClient = SUPABASE_ENABLED
 
 // ── Game settings ───────────────────────────────────────────────────────────
 const GAME_CONFIG = {
-  dataVersion: 37,
+  dataVersion: 38,
   maxScoreHistoryEntries: 100,
   firstMysteryScore: 5,
   repeatMysteryStartScore: 10,
@@ -866,7 +918,12 @@ let cloudLastSavedScoreText = "";
 let cloudLastErrorDetail = "";
 let pendingCloudScoreQueue = [];
 let cloudRefreshPendingAfterRound = false;
+let lastPipeGapY = Number.NaN;
+let currentAttemptNumber = 0;
+let currentRoundTopScorerBonusGranted = false;
 const PENDING_CLOUD_SCORE_QUEUE_KEY = "inventorpath_pending_cloud_score_queue";
+const GAME_ATTEMPT_COUNT_KEY = "inventorpath_game_attempt_count";
+const PIPE_SETTINGS_VERSION = "difficulty_engine_v1";
 
 
 function sanitizeName(name) {
@@ -1375,19 +1432,50 @@ async function saveScoreToServer(entry, options) {
     played_at: playedAt
   };
 
+  const metadataPayload = {
+    ...payload,
+    selected_character: entry.selectedCharacter || currentSprite || "",
+    difficulty_settings_version: entry.pipeSettingsVersion || PIPE_SETTINGS_VERSION,
+    difficulty_phase: entry.difficultyPhaseAtDeath || getDifficulty(cleanScore).name,
+    death_score: cleanScore,
+    death_pipe_number: Math.max(0, Math.floor(Number(entry.deathPipeNumber) || totalPipesCreated || 0)),
+    device_type: entry.deviceType || getDeviceType(),
+    attempt_number: Math.max(0, Math.floor(Number(entry.attemptNumber) || currentAttemptNumber || 0)),
+    background_photo_mode: entry.backgroundPhotoMode || (shouldUseBackgroundPhoto() ? "photo_reveal" : "no_background"),
+    god_mode_bonus_used: Boolean(entry.godModeBonusUsed),
+    mystery_effect_at_death: entry.mysteryEffectAtDeath || deathEffectLabel || "None"
+  };
+
   cloudLastSaveStatus = "Cloud save: saving " + payload.player_name + " " + cleanScore + "...";
   cloudLastErrorDetail = "";
   draw();
 
   try {
-    await supabaseRestRequest("game_scores", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Prefer: "return=representation"
-      },
-      body: JSON.stringify(payload)
-    });
+    try {
+      await supabaseRestRequest("game_scores", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Prefer: "return=representation"
+        },
+        body: JSON.stringify(metadataPayload)
+      });
+    } catch (metadataError) {
+      // If the database has not been upgraded with the optional analytics columns yet,
+      // keep the game working by saving the basic score row.
+      if (!isMissingMetadataColumnError(metadataError)) {
+        throw metadataError;
+      }
+      console.warn("Cloud score metadata columns missing; saved basic score only:", metadataError);
+      await supabaseRestRequest("game_scores", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Prefer: "return=representation"
+        },
+        body: JSON.stringify(payload)
+      });
+    }
 
     cloudLastSaveStatus = "Cloud save OK";
     cloudLastSavedScoreText = "Cloud saved: " + payload.player_name + " +" + cleanScore + " pts";
@@ -1459,7 +1547,10 @@ function applyNoBackgroundPhotoPreference() {
   if (!noBackgroundPhotoCheckbox) {
     return;
   }
-  noBackgroundPhotoCheckbox.checked = localStorage.getItem(NO_BACKGROUND_PHOTO_KEY) === "true";
+  // V38: default gameplay is no background photo reveal.
+  // Picking a photo in Settings temporarily turns this off for that session.
+  noBackgroundPhotoCheckbox.checked = true;
+  localStorage.setItem(NO_BACKGROUND_PHOTO_KEY, "true");
   updateStartButtonState();
 }
 
@@ -1472,7 +1563,7 @@ function canStartCurrentRound() {
 }
 
 function renderPlayerButtons() {
-  const selectedKey = getUserKey(playerName);
+  const selectedKey = gameStarted ? getUserKey(playerName) : "";
   if (chooseChubsonButton) {
     chooseChubsonButton.classList.toggle("selected", selectedKey === "chubson");
   }
@@ -1520,6 +1611,14 @@ function selectFixedPlayer(name) {
   updateStartButtonLabel();
   updateHudVisibility();
   draw();
+}
+
+function selectFixedPlayerAndStart(name) {
+  if (gameStarted && !gameOver) {
+    return;
+  }
+  selectFixedPlayer(name);
+  startGame();
 }
 
 
@@ -1640,6 +1739,98 @@ function applyPhysicsTuning() {
 
 
 applyPhysicsTuning();
+
+function getDifficulty(rawScore) {
+  const safeScore = Math.max(0, Math.floor(Number(rawScore) || 0));
+
+  if (safeScore < 10) {
+    return {
+      name: "Beginner",
+      gapSize: 200,
+      pipeSpeed: 2.1,
+      pipeSpacing: 300,
+      maxGapMove: 55
+    };
+  }
+
+  if (safeScore < 30) {
+    return {
+      name: "Medium",
+      gapSize: 180,
+      pipeSpeed: 2.35,
+      pipeSpacing: 285,
+      maxGapMove: 70
+    };
+  }
+
+  if (safeScore < 60) {
+    return {
+      name: "Hard",
+      gapSize: 160,
+      pipeSpeed: 2.65,
+      pipeSpacing: 265,
+      maxGapMove: 85
+    };
+  }
+
+  if (safeScore < 100) {
+    return {
+      name: "Expert",
+      gapSize: 145,
+      pipeSpeed: 2.9,
+      pipeSpacing: 250,
+      maxGapMove: 95
+    };
+  }
+
+  return {
+    name: "Legend",
+    gapSize: 135,
+    pipeSpeed: 3.1,
+    pipeSpacing: 240,
+    maxGapMove: 105
+  };
+}
+
+function randomBetween(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function createNextGap(previousGapY, scoreValue, canvasHeight) {
+  const d = getDifficulty(scoreValue);
+  const safetyMargin = Math.round(clamp(30 * uiScale, 24, 42));
+  const minGapY = d.gapSize / 2 + safetyMargin;
+  const maxGapY = canvasHeight - d.gapSize / 2 - safetyMargin;
+
+  if (!Number.isFinite(previousGapY)) {
+    return canvasHeight / 2;
+  }
+
+  const change = randomBetween(-d.maxGapMove, d.maxGapMove);
+  const nextGapY = previousGapY + change;
+  return clamp(nextGapY, minGapY, maxGapY);
+}
+
+function getDeviceType() {
+  const ua = navigator.userAgent || "";
+  if (/iPhone|iPod/i.test(ua)) return "iPhone";
+  if (/iPad/i.test(ua)) return "iPad";
+  if (/Android/i.test(ua)) return "Android";
+  if (gameWidth <= 760) return "Mobile";
+  return "Desktop";
+}
+
+function getNextAttemptNumber() {
+  const current = Math.max(0, Math.floor(Number(localStorage.getItem(GAME_ATTEMPT_COUNT_KEY)) || 0));
+  const next = current + 1;
+  localStorage.setItem(GAME_ATTEMPT_COUNT_KEY, String(next));
+  return next;
+}
+
+function isMissingMetadataColumnError(error) {
+  const message = String(error && error.message ? error.message : error || "").toLowerCase();
+  return message.includes("column") || message.includes("schema cache") || message.includes("could not find");
+}
 
 
 function getCollisionRadius() {
@@ -2038,6 +2229,10 @@ function handleImageUpload(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) {
     clearRevealImageSelection();
+    if (noBackgroundPhotoCheckbox) {
+      noBackgroundPhotoCheckbox.checked = true;
+      saveNoBackgroundPhotoPreference();
+    }
     return;
   }
   if (noBackgroundPhotoCheckbox) {
@@ -3134,6 +3329,8 @@ function resetRoundState() {
   scoreSavedForRound = false;
   lastSavedEntry = null;
   totalPipesCreated = 0;
+  lastPipeGapY = Number.NaN;
+  currentRoundTopScorerBonusGranted = false;
   mysteryBox = null;
   lastRoundEffectLabel = "None";
   deathEffectLabel = "None";
@@ -3159,6 +3356,7 @@ function resetRoundState() {
 function grantTopScorerStartingGodMode() {
   if (isCurrentPlayerTopScorer()) {
     addGodModeCharge();
+    currentRoundTopScorerBonusGranted = true;
   }
 }
 
@@ -3171,9 +3369,11 @@ function startGame() {
     return;
   }
   if (!revealImageReady && !isNoBackgroundPhotoEnabled()) {
-    alert("Choose a photo or check No background photo before starting the game.");
+    alert("Choose a photo in Settings or play with no background photo.");
     return;
   }
+  chooseRandomSprite();
+  currentAttemptNumber = getNextAttemptNumber();
   resetRoundState();
   placeBruceAtCenterForImageReveal();
   activateImagePickGodMode();
@@ -3208,10 +3408,21 @@ function persistCurrentScore() {
   }
 
   scoreSavedForRound = true;
+  const difficultyAtDeath = getDifficulty(score);
   lastSavedEntry = {
     name: playerName,
     score,
-    playedAt: new Date().toISOString()
+    playedAt: new Date().toISOString(),
+    selectedCharacter: currentSprite,
+    pipeSettingsVersion: PIPE_SETTINGS_VERSION,
+    difficultyPhaseAtDeath: difficultyAtDeath.name,
+    deathScore: score,
+    deathPipeNumber: totalPipesCreated,
+    deviceType: getDeviceType(),
+    attemptNumber: currentAttemptNumber,
+    backgroundPhotoMode: shouldUseBackgroundPhoto() ? "photo_reveal" : "no_background",
+    godModeBonusUsed: currentRoundTopScorerBonusGranted,
+    mysteryEffectAtDeath: deathEffectLabel || getEffectLabelForDeath()
   };
   scoreHistory.unshift(lastSavedEntry);
   scoreHistory = scoreHistory.slice(0, GAME_CONFIG.maxScoreHistoryEntries);
@@ -3254,8 +3465,8 @@ function setGameOver() {
 
 
 
-chooseChubsonButton.addEventListener("click", () => selectFixedPlayer("Chubson"));
-chooseChubdooButton.addEventListener("click", () => selectFixedPlayer("Chubdoo"));
+chooseChubsonButton.addEventListener("click", () => selectFixedPlayerAndStart("Chubson"));
+chooseChubdooButton.addEventListener("click", () => selectFixedPlayerAndStart("Chubdoo"));
 pauseGameButton.addEventListener("click", togglePause);
 if (pauseRightCheckbox) {
   pauseRightCheckbox.addEventListener("change", () => {
@@ -3354,6 +3565,7 @@ renderMissingAssetWarning();
 applyPauseButtonSidePreference();
 applyNoBackgroundPhotoPreference();
 applyCurrentPlayerSprite();
+chooseRandomSprite();
 updateStartButtonLabel();
 updateHudVisibility();
 pendingCloudScoreQueue = loadPendingCloudScoreQueue();
@@ -3532,20 +3744,12 @@ window.addEventListener("resize", resizeGameForViewportChange);
 
 // ── Update loop ────────────────────────────────────────────────────────────
 function createPipe() {
-  const difficulty = Math.min(score, 30);
-  const baseGap = Math.max(
-    GAME_CONFIG.pipeGapMin,
-    Math.min(GAME_CONFIG.pipeGapMax, Math.floor(gameHeight * GAME_CONFIG.pipeGapHeightRatio))
-  );
-  // At 50 pts reduce by 4%; at 100+ pts reduce a further 5% for every additional 50 pts.
-  const gapFactor = score >= 50
-    ? GAME_CONFIG.pipeGapScore50Factor * Math.pow(GAME_CONFIG.pipeGapEvery50Factor, Math.floor((score - 50) / 50))
-    : 1.0;
-  const gap = Math.max(GAME_CONFIG.pipeGapFloor, baseGap - difficulty) * GAME_CONFIG.pipeGapScale * gapFactor * GAME_CONFIG.pipeGapOverallMultiplier;
-  const margin = Math.max(50, Math.floor(gameHeight * 0.1));
-  const maxTop = Math.max(margin + 1, gameHeight - gap - margin);
-  const topHeight = Math.random() * (maxTop - margin) + margin;
+  const difficulty = getDifficulty(score);
+  const gap = Math.max(120, difficulty.gapSize);
+  const gapCenterY = createNextGap(lastPipeGapY, score, gameHeight);
+  const topHeight = gapCenterY - gap / 2;
 
+  lastPipeGapY = gapCenterY;
   totalPipesCreated += 1;
   pipes.push({
     id: totalPipesCreated,
@@ -3553,7 +3757,9 @@ function createPipe() {
     width: GAME_CONFIG.pipeWidth,
     top: topHeight,
     bottom: topHeight + gap,
-    passed: false
+    passed: false,
+    difficultyPhase: difficulty.name,
+    pipeSettingsVersion: PIPE_SETTINGS_VERSION
   });
 }
 
@@ -3564,14 +3770,9 @@ function update() {
 
   maybeExpireEffect();
 
-  const difficulty = Math.min(score, 30);
-  const scoreSpeedMultiplier = Math.pow(GAME_CONFIG.pipeScoreSpeedStep, Math.floor(score / GAME_CONFIG.pipeScoreSpeedEvery));
-  const pipeSpeed = (GAME_CONFIG.pipeSpeedBase + difficulty * GAME_CONFIG.pipeSpeedDifficultyStep) *
-    GAME_CONFIG.pipeSpeedGlobalMultiplier * getPipeSpeedMultiplier() * scoreSpeedMultiplier;
-  const spawnSpacing = Math.max(
-    GAME_CONFIG.pipeSpawnSpacingMin,
-    GAME_CONFIG.pipeSpawnSpacingBase - difficulty * GAME_CONFIG.pipeSpawnSpacingDifficultyStep
-  );
+  const difficulty = getDifficulty(score);
+  const pipeSpeed = difficulty.pipeSpeed * getPipeSpeedMultiplier();
+  const spawnSpacing = difficulty.pipeSpacing;
 
   bird.velocity += bird.gravity;
   bird.y += bird.velocity;
