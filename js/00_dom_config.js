@@ -228,7 +228,7 @@ let lastGapPatternName = "None";
 let lastGapPatternDifficulty = 0;
 const PENDING_CLOUD_SCORE_QUEUE_KEY = "inventorpath_pending_cloud_score_queue";
 const GAME_ATTEMPT_COUNT_KEY = "inventorpath_game_attempt_count";
-const PIPE_SETTINGS_VERSION = "difficulty_engine_v5_pattern_engine_v1";
+const PIPE_SETTINGS_VERSION = "difficulty_engine_v6_visible_gap_count_2_5";
 
 
 function sanitizeName(name) {

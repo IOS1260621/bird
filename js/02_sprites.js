@@ -157,6 +157,26 @@ function getDifficulty(rawScore) {
   };
 }
 
+function getTargetPipeSpacing(difficulty) {
+  // V43: horizontal spacing is based on screen width, so about 2.5 pipe gap sets
+  // are visible at once. This replaces fixed per-phase spacing numbers while
+  // keeping the difficulty engine responsible for gap size, speed, and patterns.
+  const visibleGapSetsTarget = 2.5;
+  const pipeWidth = GAME_CONFIG.pipeWidth || 85.5;
+  const spacingFromScreen = (gameWidth + pipeWidth) / visibleGapSetsTarget;
+
+  // Guardrails keep very small screens playable and very large screens from becoming empty.
+  const minimumSpacing = Math.max(pipeWidth + 72, 170);
+  const maximumSpacing = Math.max(minimumSpacing, gameWidth * 0.58);
+
+  return Math.round(clamp(spacingFromScreen, minimumSpacing, maximumSpacing));
+}
+
+function getVisibleGapSetsEstimate(spacing) {
+  const safeSpacing = Math.max(1, Number(spacing) || 1);
+  return (gameWidth + (GAME_CONFIG.pipeWidth || 85.5)) / safeSpacing;
+}
+
 const GAP_PATTERNS = [
   {
     name: "Gentle Climb",

@@ -33,3 +33,8 @@ Keep these image files in the same folder as `index.html`, unless you update the
 This version uses plain `<script>` files instead of JavaScript modules so the original global game code behavior is preserved. That makes it easier to split the app without accidentally breaking it.
 
 To deploy on GitHub Pages, upload all folders/files exactly as shown.
+
+
+## V43 spacing update
+
+Pipe spacing now uses a screen-width rule: the game targets about 2.5 visible pipe-gap sets on screen at a time. This is handled by `getTargetPipeSpacing()` in `js/02_sprites.js`, and the update loop uses that value when deciding when to spawn the next pipe.

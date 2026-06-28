@@ -32,7 +32,7 @@ function update() {
 
   const difficulty = getDifficulty(score);
   const pipeSpeed = difficulty.pipeSpeed * getPipeSpeedMultiplier();
-  const spawnSpacing = difficulty.pipeSpacing;
+  const spawnSpacing = getTargetPipeSpacing(difficulty);
 
   bird.velocity += bird.gravity;
   bird.y += bird.velocity;
