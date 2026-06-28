@@ -1,53 +1,35 @@
-# Bird
+# Bouncing Bruce — Clean File Structure V42
 
-Mobile-friendly Flappy Bird style game built with plain HTML, CSS, and JavaScript.
+This is the same Bouncing Bruce V42 Pattern Engine app, split into cleaner files.
 
-## Features
+## Main files
 
-- iPhone-optimized canvas rendering (dynamic viewport + retina scaling)
-- Start flow with player name input and Start Game button
-- Dog player sprite using a bundled generic image ([dog.svg](dog.svg))
-- Progressive difficulty with tuned mobile-friendly pacing
-- Persistent per-player score history with date/time
-- Game Over overlay showing current score, played timestamp, and prior scores
+- `index.html` — page structure and script loading order
+- `css/style.css` — all styling
+- `js/00_dom_config.js` — DOM references, game config, globals, Supabase setup
+- `js/01_storage_cloud.js` — local storage, player accounts, Supabase save/load/realtime logic
+- `js/02_sprites.js` — Bruce sprite selection/randomization
+- `js/03_photo_reveal.js` — optional background photo reveal and 100-point prompt
+- `js/04_effects.js` — size/speed/God Mode effects
+- `js/05_mystery.js` — mystery box behavior
+- `js/06_scores_stats.js` — local score history, daily stats, total points battle
+- `js/07_game_state_draw.js` — start/reset/game state and canvas drawing
+- `js/08_sound.js` — sound effects
+- `js/09_update_loop.js` — controls, update loop, collisions, pipe movement
+- `sql/v42_pattern_engine_columns.sql` — optional Supabase analytics columns
 
-## Run Locally
+## Required image assets
 
-From the project folder:
+Keep these image files in the same folder as `index.html`, unless you update the paths in `js/00_dom_config.js`:
 
-```bash
-python3 -m http.server 8000
-```
+- `dog.svg`
+- `bruce.png`
+- `gooboybruce.PNG`
+- `smileB.png`
+- `ct-gantry.svg`
 
-Open:
+## Notes
 
-- http://localhost:8000
+This version uses plain `<script>` files instead of JavaScript modules so the original global game code behavior is preserved. That makes it easier to split the app without accidentally breaking it.
 
-## Play Flow
-
-1. Enter player name.
-2. Press Start Game.
-3. Tap/click/space to flap.
-4. On Game Over, review score + timestamp + previous scores.
-5. Press Play Again to start a new run.
-
-## Data Storage
-
-Scores and player name are stored in browser local storage.
-
-- Key: `inventorpath_player_name`
-- Key: `inventorpath_player_name_set`
-- Key: `inventorpath_score_history`
-
-To reset saved history, clear site data/local storage in your browser.
-
-## Publish
-
-This is a static app and can be hosted on GitHub Pages, Netlify, or Vercel.
-
-For GitHub Pages:
-
-1. Push to `main`.
-2. In repository Settings, open Pages.
-3. Deploy from branch: `main`, folder: `/ (root)`.
-4. Save and wait for deployment.
+To deploy on GitHub Pages, upload all folders/files exactly as shown.
