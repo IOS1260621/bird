@@ -923,7 +923,7 @@ let currentAttemptNumber = 0;
 let currentRoundTopScorerBonusGranted = false;
 const PENDING_CLOUD_SCORE_QUEUE_KEY = "inventorpath_pending_cloud_score_queue";
 const GAME_ATTEMPT_COUNT_KEY = "inventorpath_game_attempt_count";
-const PIPE_SETTINGS_VERSION = "difficulty_engine_v1";
+const PIPE_SETTINGS_VERSION = "difficulty_engine_v3_harder_flappy_style";
 
 
 function sanitizeName(name) {
@@ -1749,7 +1749,7 @@ function getDifficulty(rawScore) {
       gapSize: 200,
       pipeSpeed: 2.1,
       pipeSpacing: 300,
-      maxGapMove: 55
+      maxGapMove: 100
     };
   }
 
@@ -1759,7 +1759,7 @@ function getDifficulty(rawScore) {
       gapSize: 180,
       pipeSpeed: 2.35,
       pipeSpacing: 285,
-      maxGapMove: 70
+      maxGapMove: 125
     };
   }
 
@@ -1769,7 +1769,7 @@ function getDifficulty(rawScore) {
       gapSize: 160,
       pipeSpeed: 2.65,
       pipeSpacing: 265,
-      maxGapMove: 85
+      maxGapMove: 150
     };
   }
 
@@ -1779,7 +1779,7 @@ function getDifficulty(rawScore) {
       gapSize: 145,
       pipeSpeed: 2.9,
       pipeSpacing: 250,
-      maxGapMove: 95
+      maxGapMove: 170
     };
   }
 
@@ -1788,7 +1788,7 @@ function getDifficulty(rawScore) {
     gapSize: 135,
     pipeSpeed: 3.1,
     pipeSpacing: 240,
-    maxGapMove: 105
+    maxGapMove: 190
   };
 }
 
@@ -1803,10 +1803,18 @@ function createNextGap(previousGapY, scoreValue, canvasHeight) {
   const maxGapY = canvasHeight - d.gapSize / 2 - safetyMargin;
 
   if (!Number.isFinite(previousGapY)) {
-    return canvasHeight / 2;
+    // Start the first pipe in a safe center band, but not always dead center.
+    // This keeps the first obstacle fair while making each round feel less identical.
+    const centerBandMin = Math.max(minGapY, canvasHeight * 0.36);
+    const centerBandMax = Math.min(maxGapY, canvasHeight * 0.64);
+    return randomBetween(centerBandMin, centerBandMax);
   }
 
-  const change = randomBetween(-d.maxGapMove, d.maxGapMove);
+  // V40: harder vertical variation. Most pipes use the difficulty move range,
+  // with an occasional bigger-but-still-clamped move so the path feels less flat.
+  const variationBoost = Math.random() < 0.22 ? 1.28 : 1.0;
+  const moveLimit = d.maxGapMove * variationBoost;
+  const change = randomBetween(-moveLimit, moveLimit);
   const nextGapY = previousGapY + change;
   return clamp(nextGapY, minGapY, maxGapY);
 }
