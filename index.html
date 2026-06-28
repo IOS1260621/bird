@@ -49,31 +49,33 @@
 
       <div class="dev-controls" id="devControls" style="display:none;">
         <div class="dev-warning">DEV MODE ON — scores will not be saved.</div>
-        <div class="dev-param-row">
-          <label for="devGameSpeedInput">Game Speed</label>
-          <input id="devGameSpeedInput" type="number" min="-90" max="300" step="1" value="0">
-        </div>
-        <div class="dev-param-row">
-          <label for="devBruceSizeInput">Bruce Size</label>
-          <input id="devBruceSizeInput" type="number" min="-90" max="300" step="1" value="0">
-        </div>
-        <div class="dev-param-row">
-          <label for="devGapWidthInput">Gap Width</label>
-          <input id="devGapWidthInput" type="number" min="-90" max="300" step="1" value="0">
-        </div>
-        <div class="dev-param-row">
-          <label for="devGapHeightInput">Gap Height</label>
-          <input id="devGapHeightInput" type="number" min="-90" max="300" step="1" value="0">
-        </div>
-        <div class="dev-param-row dev-checkbox-row">
-          <label for="devGodModeCheckbox">GM</label>
-          <input id="devGodModeCheckbox" type="checkbox">
+        <div class="dev-param-grid">
+          <div class="dev-param-card">
+            <label for="devGameSpeedInput">Game Speed</label>
+            <input id="devGameSpeedInput" type="number" min="-90" max="300" step="1" value="0">
+          </div>
+          <div class="dev-param-card">
+            <label for="devBruceSizeInput">Bruce Size</label>
+            <input id="devBruceSizeInput" type="number" min="-90" max="300" step="1" value="0">
+          </div>
+          <div class="dev-param-card">
+            <label for="devGapWidthInput">Gap Width</label>
+            <input id="devGapWidthInput" type="number" min="-90" max="300" step="1" value="0">
+          </div>
+          <div class="dev-param-card">
+            <label for="devGapHeightInput">Gap Height</label>
+            <input id="devGapHeightInput" type="number" min="-90" max="300" step="1" value="0">
+          </div>
+          <div class="dev-param-card dev-gm-card">
+            <label for="devGodModeCheckbox">GM</label>
+            <input id="devGodModeCheckbox" type="checkbox">
+          </div>
         </div>
         <div class="dev-button-row">
-          <button class="secondary-button" id="devResetButton" type="button">Reset Dev Settings</button>
-          <button class="secondary-button" id="devExitButton" type="button">Exit Dev Mode</button>
+          <button class="secondary-button" id="devResetButton" type="button">Reset</button>
+          <button class="secondary-button" id="devExitButton" type="button">Exit</button>
         </div>
-        <div class="dev-help-text">Use -10 for 10% less, +10 for 10% more. Admin scores do not count.</div>
+        <div class="dev-help-text">-10 = 10% less. +10 = 10% more. Admin scores do not count.</div>
       </div>
     </div>
   </details>

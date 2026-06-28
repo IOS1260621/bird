@@ -46,3 +46,11 @@ Pipe spacing now uses a screen-width rule: the game targets about 2.5 visible pi
 - Reduced each vertical column width by 20%: 85.5px to 68.4px.
 - Changed the screen-spacing target from 2.5 visible column/gap sets to 3.0 visible column/gap sets.
 - Kept Supabase cloud scores and Pattern Engine V1.
+
+## V47 Developer layout update
+
+- Reworked Developer Mode controls so they fit better on phone screens.
+- Game Speed and Bruce Size now sit side by side with values directly underneath.
+- Gap Width and Gap Height now sit side by side with values directly underneath.
+- GM stays inside the same compact grid.
+- Reset and Exit buttons were shortened to save vertical space.

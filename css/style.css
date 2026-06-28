@@ -641,8 +641,8 @@ html, body {
 /* ── Developer / Admin settings ─────────────────────────────────────────── */
 .dev-login-box,
 .dev-controls {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid rgba(15, 23, 42, 0.16);
 }
 .dev-section-title {
@@ -650,41 +650,41 @@ html, body {
   font-size: 13px;
   font-weight: 950;
   color: #0f172a;
-  margin-bottom: 8px;
+  margin-bottom: 7px;
 }
 .dev-login-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 7px;
+  margin-bottom: 7px;
 }
 .dev-login-grid input,
-.dev-param-row input {
+.dev-param-card input[type="number"] {
   min-width: 0;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   background: #ffffff;
   color: #0f172a;
-  font-size: 13px;
-  font-weight: 800;
-  padding: 9px 10px;
+  font-size: 14px;
+  font-weight: 900;
+  padding: 7px 8px;
   outline: none;
 }
 .dev-login-grid input:focus,
-.dev-param-row input:focus {
+.dev-param-card input:focus {
   border-color: #0284c7;
   box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.18);
 }
 .dev-unlock-button {
-  margin-bottom: 8px;
+  margin-bottom: 7px;
 }
 .dev-mode-status {
-  min-height: 16px;
+  min-height: 14px;
   text-align: center;
   font-size: 11px;
   font-weight: 900;
   color: #475569;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 .dev-mode-status.dev-active,
 .dev-warning {
@@ -694,58 +694,70 @@ html, body {
   background: #fee2e2;
   border: 1px solid #fca5a5;
   border-radius: 10px;
-  padding: 8px 10px;
-  font-size: 12px;
+  padding: 6px 8px;
+  font-size: 11px;
   font-weight: 950;
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 7px;
 }
-.dev-param-row {
+.dev-param-grid {
   display: grid;
-  grid-template-columns: 1fr 92px;
-  gap: 8px;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  align-items: stretch;
+}
+.dev-param-card {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 5px;
   align-items: center;
-  margin-bottom: 8px;
+  justify-items: center;
+  min-width: 0;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 12px;
-  padding: 8px 10px;
+  padding: 7px 8px;
 }
-.dev-param-row label {
+.dev-param-card label {
   color: #0f172a;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 950;
+  text-align: center;
+  line-height: 1.05;
+  white-space: nowrap;
 }
-.dev-param-row input[type="number"] {
-  width: 100%;
+.dev-param-card input[type="number"] {
+  width: min(100%, 92px);
   text-align: center;
 }
-.dev-checkbox-row input[type="checkbox"] {
-  width: 22px;
-  height: 22px;
-  justify-self: end;
+.dev-gm-card input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
   accent-color: #dc2626;
 }
 .dev-button-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 8px;
+  gap: 7px;
+  margin-top: 7px;
+}
+.dev-button-row .secondary-button {
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 .dev-help-text {
-  margin-top: 8px;
+  margin-top: 6px;
   color: #475569;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
   text-align: center;
-  line-height: 1.3;
+  line-height: 1.2;
 }
-@media (max-width: 360px) {
-  .dev-login-grid,
-  .dev-button-row {
-    grid-template-columns: 1fr;
+@media (max-width: 330px) {
+  .dev-param-card label {
+    font-size: 11px;
   }
-  .dev-param-row {
-    grid-template-columns: 1fr 80px;
+  .dev-param-card input[type="number"] {
+    width: min(100%, 76px);
   }
 }
