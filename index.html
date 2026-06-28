@@ -372,6 +372,143 @@
       border: 1px solid #94a3b8;
     }
 
+    .no-background-row {
+      justify-content: center;
+    }
+    .no-background-row label {
+      flex: 1;
+      white-space: normal;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .no-background-row input[type="checkbox"] {
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      accent-color: #0284c7;
+    }
+    .today-scores-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 32;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: rgba(15, 23, 42, 0.66);
+      touch-action: auto;
+      pointer-events: auto;
+    }
+    .today-scores-card {
+      width: min(94vw, 560px);
+      max-height: min(82dvh, 720px);
+      overflow: auto;
+      background: rgba(255, 255, 255, 0.97);
+      color: #0f172a;
+      border: 1px solid rgba(15, 23, 42, 0.16);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 20px 48px rgba(15, 23, 42, 0.34);
+      backdrop-filter: blur(5px);
+    }
+    .today-scores-title {
+      font-size: 24px;
+      font-weight: 950;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .today-scores-subtitle {
+      font-size: 12px;
+      font-weight: 800;
+      text-align: center;
+      color: #475569;
+      margin-bottom: 12px;
+      line-height: 1.35;
+    }
+    .today-scores-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .today-score-summary-card {
+      border: 1px solid rgba(15, 23, 42, 0.14);
+      border-radius: 14px;
+      background: #f8fafc;
+      padding: 10px;
+    }
+    .today-score-summary-name {
+      font-size: 16px;
+      font-weight: 950;
+      margin-bottom: 6px;
+    }
+    .today-score-summary-line {
+      font-size: 12px;
+      font-weight: 800;
+      color: #334155;
+      line-height: 1.45;
+    }
+    .today-scores-table-wrap {
+      overflow-x: auto;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 12px;
+      background: #ffffff;
+    }
+    .today-scores-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .today-scores-table th,
+    .today-scores-table td {
+      padding: 8px 7px;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+      text-align: left;
+      white-space: nowrap;
+    }
+    .today-scores-table th {
+      background: #0f172a;
+      color: #ffffff;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .today-scores-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .today-scores-actions button {
+      border: 0;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 950;
+      padding: 11px 12px;
+      cursor: pointer;
+    }
+    .today-scores-refresh-button {
+      background: #0284c7;
+      color: #ffffff;
+    }
+    .today-scores-close-button {
+      background: #ffffff;
+      color: #0f172a;
+      border: 1px solid #94a3b8 !important;
+    }
+    @media (max-width: 520px) {
+      .today-scores-grid {
+        grid-template-columns: 1fr;
+      }
+      .today-scores-card {
+        max-height: 84dvh;
+        padding: 14px;
+      }
+    }
+
     .hundred-photo-modal {
       position: fixed;
       inset: 0;
@@ -462,7 +599,7 @@
 <div class="hud-panel" id="hudPanel">
   <div class="game-title" id="gameTitle" aria-label="Bouncing Bruce Version 31">
     <div class="game-title-main">Bouncing Bruce</div>
-    <div class="game-title-sub">Version 36 Cloud Scores</div>
+    <div class="game-title-sub">Version 37 Cloud Scores</div>
   </div>
   <div class="selected-sprite-preview" id="selectedSpritePreview" aria-live="polite">
     <img id="selectedSpritePreviewImage" alt="Selected Bruce sprite preview">
@@ -480,6 +617,10 @@
     <label for="imageUploadInput">Photo</label>
     <input id="imageUploadInput" type="file" accept="image/*" aria-label="Choose photo from your phone">
   </div>
+  <div class="hud-row no-background-row" id="noBackgroundRow">
+    <input id="noBackgroundPhotoCheckbox" type="checkbox">
+    <label for="noBackgroundPhotoCheckbox">No background photo</label>
+  </div>
   <div class="image-upload-name" id="imageUploadName"></div>
   <div class="hud-row pause-side-row" id="pauseSideRow">
     <input id="pauseRightCheckbox" type="checkbox">
@@ -490,9 +631,22 @@
   <ol class="score-list" id="scoreList"></ol>
   <div class="hud-actions">
     <button class="start-button" id="startGameButton" type="button">Start Game</button>
+    <button class="secondary-button" id="todayScoresButton" type="button">Today Scores</button>
     <div class="start-status" id="startStatusMessage"></div>
   </div>
   <div class="asset-warning" id="assetWarning"></div>
+</div>
+
+<div class="today-scores-modal" id="todayScoresModal" aria-live="polite">
+  <div class="today-scores-card">
+    <div class="today-scores-title">Today Scores</div>
+    <div class="today-scores-subtitle" id="todayScoresSubtitle">Cloud daily scores</div>
+    <div id="todayScoresContent">Loading scores...</div>
+    <div class="today-scores-actions">
+      <button class="today-scores-refresh-button" id="todayScoresRefreshButton" type="button">Refresh</button>
+      <button class="today-scores-close-button" id="todayScoresCloseButton" type="button">Close</button>
+    </div>
+  </div>
 </div>
 
 <div class="hundred-photo-modal" id="hundredPhotoModal" aria-live="polite">
@@ -534,7 +688,14 @@ const scoreList = document.getElementById("scoreList");
 const scoreListTitle = document.getElementById("scoreListTitle");
 const startGameButton = document.getElementById("startGameButton");
 const imageUploadInput = document.getElementById("imageUploadInput");
+const noBackgroundPhotoCheckbox = document.getElementById("noBackgroundPhotoCheckbox");
 const imageUploadName = document.getElementById("imageUploadName");
+const todayScoresButton = document.getElementById("todayScoresButton");
+const todayScoresModal = document.getElementById("todayScoresModal");
+const todayScoresContent = document.getElementById("todayScoresContent");
+const todayScoresSubtitle = document.getElementById("todayScoresSubtitle");
+const todayScoresRefreshButton = document.getElementById("todayScoresRefreshButton");
+const todayScoresCloseButton = document.getElementById("todayScoresCloseButton");
 const pauseRightCheckbox = document.getElementById("pauseRightCheckbox");
 const chooseChubsonButton = document.getElementById("chooseChubsonButton");
 const chooseChubdooButton = document.getElementById("chooseChubdooButton");
@@ -566,7 +727,7 @@ const supabaseClient = SUPABASE_ENABLED
 
 // ── Game settings ───────────────────────────────────────────────────────────
 const GAME_CONFIG = {
-  dataVersion: 33,
+  dataVersion: 37,
   maxScoreHistoryEntries: 100,
   firstMysteryScore: 5,
   repeatMysteryStartScore: 10,
@@ -649,6 +810,7 @@ const DAILY_STATS_KEY = "inventorpath_daily_stats";
 const TOTAL_POINTS_BY_USER_KEY = "inventorpath_total_points_by_user";
 const TOTAL_POINTS_DATE_KEY = "inventorpath_total_points_date";
 const PAUSE_BUTTON_RIGHT_KEY = "inventorpath_pause_button_right";
+const NO_BACKGROUND_PHOTO_KEY = "inventorpath_no_background_photo";
 const LAST_RESET_DATE_KEY = "inventorpath_last_reset_date";
 const DATA_VERSION_KEY = "inventorpath_data_version";
 const INACTIVITY_DAYS = 14;
@@ -696,6 +858,7 @@ let cloudDailyLeaderKey = "";
 let cloudRealtimeChannel = null;
 let cloudDailyTotals = createEmptyCloudDailyTotals();
 let cloudLifetimeTotals = createEmptyCloudLifetimeTotals();
+let cloudTodayScores = [];
 let cloudTopScores = [];
 let cloudLastSaveStatus = "Cloud save: not tested yet";
 let cloudLastLoadStatus = "Cloud load: not loaded yet";
@@ -1119,6 +1282,7 @@ async function loadCloudScores() {
 
   if (!isSupabaseRestConfigured()) {
     cloudScoresLoaded = false;
+    cloudTodayScores = [];
     cloudLastLoadStatus = "Cloud not configured";
     cloudLastErrorDetail = "";
     draw();
@@ -1138,9 +1302,12 @@ async function loadCloudScores() {
     const safeTodayRows = Array.isArray(todayRows) ? todayRows : [];
     safeTodayRows.forEach(row => addCloudDailyTotalFromScoreRow(dailyTotals, row));
     cloudDailyTotals = dailyTotals;
-    cloudTopScores = safeTodayRows
+    cloudTodayScores = safeTodayRows
       .map(normalizeCloudScoreEntry)
       .filter(Boolean)
+      .sort((a, b) => getPlayedAtTime(b) - getPlayedAtTime(a));
+    cloudTopScores = cloudTodayScores
+      .slice()
       .sort(compareScoreEntries)
       .slice(0, 20);
 
@@ -1161,10 +1328,14 @@ async function loadCloudScores() {
     cloudLastErrorDetail = "";
     updateCloudDailyLeader();
     renderScoreHistory();
+    if (todayScoresModal && todayScoresModal.style.display === "flex") {
+      renderTodayScoresModal();
+    }
     draw();
   } catch (error) {
     console.warn("Cloud score load error:", error);
     cloudScoresLoaded = false;
+    cloudTodayScores = [];
     cloudLastLoadStatus = "Cloud load failed";
     cloudLastErrorDetail = "Cloud load failed: " + (error && error.message ? error.message : String(error));
     renderScoreHistory();
@@ -1274,6 +1445,30 @@ function applyPauseButtonSidePreference() {
   if (pauseGameButton) {
     pauseGameButton.classList.toggle("pause-right", isRightSide);
   }
+}
+
+function isNoBackgroundPhotoEnabled() {
+  return Boolean(noBackgroundPhotoCheckbox && noBackgroundPhotoCheckbox.checked);
+}
+
+function saveNoBackgroundPhotoPreference() {
+  localStorage.setItem(NO_BACKGROUND_PHOTO_KEY, isNoBackgroundPhotoEnabled() ? "true" : "false");
+}
+
+function applyNoBackgroundPhotoPreference() {
+  if (!noBackgroundPhotoCheckbox) {
+    return;
+  }
+  noBackgroundPhotoCheckbox.checked = localStorage.getItem(NO_BACKGROUND_PHOTO_KEY) === "true";
+  updateStartButtonState();
+}
+
+function shouldUseBackgroundPhoto() {
+  return Boolean(revealImageReady && !isNoBackgroundPhotoEnabled());
+}
+
+function canStartCurrentRound() {
+  return Boolean(activeUserName && (revealImageReady || isNoBackgroundPhotoEnabled()));
 }
 
 function renderPlayerButtons() {
@@ -1689,7 +1884,7 @@ function updateStartButtonState() {
     return;
   }
 
-  const canStart = Boolean(activeUserName && revealImageReady);
+  const canStart = canStartCurrentRound();
   startGameButton.disabled = !canStart;
 
   if (!startStatusMessage) {
@@ -1698,11 +1893,16 @@ function updateStartButtonState() {
 
   if (!activeUserName) {
     startStatusMessage.textContent = "Choose a player to continue.";
+  } else if (isNoBackgroundPhotoEnabled() && !revealImageReady) {
+    startStatusMessage.textContent = "Ready to play with no background photo.";
+  } else if (isNoBackgroundPhotoEnabled() && revealImageReady) {
+    startStatusMessage.textContent = "No background photo mode is on.";
   } else if (!revealImageReady) {
-    startStatusMessage.textContent = "Pick a photo before starting.";
+    startStatusMessage.textContent = "Pick a photo or check No background photo.";
   } else {
     startStatusMessage.textContent = "Ready to play.";
   }
+  draw();
 }
 
 function applyCurrentPlayerSprite() {
@@ -1840,6 +2040,10 @@ function handleImageUpload(event) {
     clearRevealImageSelection();
     return;
   }
+  if (noBackgroundPhotoCheckbox) {
+    noBackgroundPhotoCheckbox.checked = false;
+    saveNoBackgroundPhotoPreference();
+  }
   loadRevealImageFile(file);
 }
 
@@ -1935,7 +2139,7 @@ function drawImageRevealPuzzle(panelX, panelY, panelSize) {
 }
 
 function drawActiveImageRevealPuzzle() {
-  if (!revealImageReady || gameOver) {
+  if (!shouldUseBackgroundPhoto() || gameOver) {
     return;
   }
   const panelSize = Math.round(clamp(Math.min(gameWidth * 0.28, gameHeight * 0.22), 104, 172));
@@ -1972,7 +2176,7 @@ function getRevealImageCoverRect() {
 }
 
 function drawRevealedPhotoBackground() {
-  if (!revealImageReady || !revealImage.complete || revealImage.naturalWidth <= 0) {
+  if (!shouldUseBackgroundPhoto() || !revealImage.complete || revealImage.naturalWidth <= 0) {
     return;
   }
 
@@ -2047,6 +2251,9 @@ function hideHundredPhotoPrompt() {
 function promptForNewPhotoAtHundred(pipe) {
   // Trigger at every 100-point milestone. Use >= instead of === so the
   // prompt cannot be missed if more than one pipe is passed in a fast frame.
+  if (isNoBackgroundPhotoEnabled() || !revealImageReady) {
+    return;
+  }
   if (backgroundSwapPending || score <= 0 || score < nextPhotoMilestoneScore) {
     return;
   }
@@ -2744,6 +2951,122 @@ function maybeResetScoresNightly() {
   setTimeout(maybeResetScoresNightly, nextMidnight.getTime() - now.getTime());
 }
 
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatScoreTimeOnly(isoTime) {
+  const date = new Date(isoTime);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
+  }
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getTodayScoresForModal() {
+  if (cloudScoresLoaded) {
+    return cloudTodayScores.slice();
+  }
+
+  const today = getDayString();
+  return scoreHistory
+    .filter(entry => isValidScoreEntry(entry) && isScoreEntryFromDay(entry, today))
+    .sort((a, b) => getPlayedAtTime(b) - getPlayedAtTime(a));
+}
+
+function getTodaySummaryForModal(rows) {
+  const summary = createEmptyCloudDailyTotals();
+  rows.forEach(row => {
+    const userKey = getUserKey(row && (row.name || row.player_name || row.player_key || ""));
+    if (!isFixedUserKey(userKey)) {
+      return;
+    }
+    const points = Math.max(0, Math.floor(Number(row.score) || 0));
+    summary[userKey].totalPoints += points;
+    summary[userKey].gamesPlayed += 1;
+    summary[userKey].highScore = Math.max(summary[userKey].highScore || 0, points);
+  });
+  return summary;
+}
+
+function renderTodayScoresModal() {
+  if (!todayScoresContent) {
+    return;
+  }
+
+  const rows = getTodayScoresForModal();
+  const summary = cloudScoresLoaded ? cloudDailyTotals : getTodaySummaryForModal(rows);
+  const today = getHawaiiDayString();
+  const sourceLabel = cloudScoresLoaded ? "Cloud scores" : "Local scores only";
+
+  if (todayScoresSubtitle) {
+    todayScoresSubtitle.textContent = sourceLabel + " • Hawaii day " + today;
+  }
+
+  const doo = summary.chubdoo || createEmptyCloudDailyTotals().chubdoo;
+  const son = summary.chubson || createEmptyCloudDailyTotals().chubson;
+  const cards = [doo, son].map(item => `
+    <div class="today-score-summary-card">
+      <div class="today-score-summary-name">${escapeHtml(item.userName)}</div>
+      <div class="today-score-summary-line">Picked / games played: ${Number(item.gamesPlayed) || 0}</div>
+      <div class="today-score-summary-line">Total points: ${Number(item.totalPoints) || 0}</div>
+      <div class="today-score-summary-line">Highest score: ${Number(item.highScore) || 0}</div>
+    </div>
+  `).join("");
+
+  const rowsHtml = rows.length
+    ? rows.map((entry, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${escapeHtml(entry.name)}</td>
+          <td>${Number(entry.score) || 0}</td>
+          <td>${escapeHtml(formatScoreTimeOnly(entry.playedAt))}</td>
+        </tr>
+      `).join("")
+    : `<tr><td colspan="4">No scores saved for today yet.</td></tr>`;
+
+  todayScoresContent.innerHTML = `
+    <div class="today-scores-grid">${cards}</div>
+    <div class="today-scores-table-wrap">
+      <table class="today-scores-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Player</th>
+            <th>Score</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function showTodayScoresModal() {
+  if (!todayScoresModal || !todayScoresContent) {
+    return;
+  }
+
+  todayScoresModal.style.display = "flex";
+  todayScoresContent.textContent = "Loading today scores...";
+  if (!isActiveRoundInProgress()) {
+    await loadCloudScores();
+  }
+  renderTodayScoresModal();
+}
+
+function hideTodayScoresModal() {
+  if (todayScoresModal) {
+    todayScoresModal.style.display = "none";
+  }
+}
+
 function renderScoreHistory() {
   // V17: no visible statistics on the start screen.
   // Scores are saved for today only, including the Game Over pie chart and score files.
@@ -2847,8 +3170,8 @@ function startGame() {
     alert("Choose Chubson or Chubdoo before starting the game.");
     return;
   }
-  if (!revealImageReady) {
-    alert("Choose a photo before starting the game.");
+  if (!revealImageReady && !isNoBackgroundPhotoEnabled()) {
+    alert("Choose a photo or check No background photo before starting the game.");
     return;
   }
   resetRoundState();
@@ -2943,6 +3266,28 @@ if (pauseRightCheckbox) {
 gameOverLogoutButton.addEventListener("click", logoutAccount);
 gameOverPlayAgainButton.addEventListener("click", startGame);
 imageUploadInput.addEventListener("change", handleImageUpload);
+if (noBackgroundPhotoCheckbox) {
+  noBackgroundPhotoCheckbox.addEventListener("change", () => {
+    saveNoBackgroundPhotoPreference();
+    updateStartButtonState();
+  });
+}
+if (todayScoresButton) {
+  todayScoresButton.addEventListener("click", showTodayScoresModal);
+}
+if (todayScoresCloseButton) {
+  todayScoresCloseButton.addEventListener("click", hideTodayScoresModal);
+}
+if (todayScoresRefreshButton) {
+  todayScoresRefreshButton.addEventListener("click", showTodayScoresModal);
+}
+if (todayScoresModal) {
+  todayScoresModal.addEventListener("click", event => {
+    if (event.target === todayScoresModal) {
+      hideTodayScoresModal();
+    }
+  });
+}
 hundredPhotoPickButton.addEventListener("click", () => {
   if (hundredImageUploadInput) {
     hundredImageUploadInput.click();
@@ -3007,6 +3352,7 @@ renderScoreHistory();
 renderAuthStatus();
 renderMissingAssetWarning();
 applyPauseButtonSidePreference();
+applyNoBackgroundPhotoPreference();
 applyCurrentPlayerSprite();
 updateStartButtonLabel();
 updateHudVisibility();
@@ -3130,7 +3476,7 @@ function flap() {
 
 
 window.addEventListener("pointerdown", event => {
-  if (hudPanel.contains(event.target) || gameOverActions.contains(event.target) || pauseGameButton.contains(event.target) || (hundredPhotoModal && hundredPhotoModal.contains(event.target))) {
+  if (hudPanel.contains(event.target) || gameOverActions.contains(event.target) || pauseGameButton.contains(event.target) || (hundredPhotoModal && hundredPhotoModal.contains(event.target)) || (todayScoresModal && todayScoresModal.contains(event.target))) {
     return;
   }
 
